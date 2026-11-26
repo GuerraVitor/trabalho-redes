@@ -1,5 +1,5 @@
 from mininet.topo import Topo
-from mininet.node import CPULimitedHost
+from mininet.node import Host  # CPULimitedHost precisa de cgroups v1 (falha no Ubuntu 24.04)
 from mininet.link import TCLink
 from mininet.net import Mininet
 from mininet.log import lg, info
@@ -62,13 +62,21 @@ class BBTopo(Topo):
     "Simple topology for bufferbloat experiment."
 
     def build(self, n=2):
-        # TODO: create two hosts
+        h1 = self.addHost('h1')
+        h2 = self.addHost('h2')
 
         # Here I have created a switch.  If you change its name, its
         # interface names will change from s0-eth1 to newname-eth1.
         switch = self.addSwitch('s0')
 
-        # TODO: Add links with appropriate characteristics
+        # O atraso do TCLink vale em cada sentido de cada enlace: o caminho h1-s0-h2 tem
+        # dois enlaces, entao RTT = 4 * delay (delay = 5 ms -> RTT de 20 ms).
+        # O netem do enlace h1-s0 fica na saida de h1 e solta o pacote do socket, o que
+        # evita que o TCP Small Queues limite a fila do gargalo (Apendice C do enunciado).
+        self.addLink(h1, switch, bw=args.bw_host, delay='%gms' % args.delay)
+        # gargalo: saida s0-eth2 (s0 -> h2), com buffer de maxq pacotes
+        self.addLink(switch, h2, bw=args.bw_net, delay='%gms' % args.delay,
+                     max_queue_size=args.maxq)
 
 # Simple wrappers around monitoring utilities.  You are welcome to
 # contribute neatly written (using classes) monitoring scripts for
@@ -83,9 +91,10 @@ def start_iperf(net):
     # there is a chance that the router buffer may not get filled up.
     server = h2.popen("iperf -s -w 16m")
 
-    # TODO: Start the iperf client on h1.  Ensure that you create a
-    # long lived TCP flow.
-    # client = ... 
+    # fluxo longo: dura o experimento inteiro (+5 s de folga); -Z escolhe o algoritmo
+    client = h1.popen("iperf -c %s -t %d -Z %s -w 16m > %s/iperf.txt 2>&1"
+                      % (h2.IP(), args.time + 5, args.cong, args.dir), shell=True)
+    return [server, client]
 
 def start_qmon(iface, interval_sec=0.1, outfile="q.txt"):
     monitor = Process(target=monitor_qlen,
@@ -94,14 +103,18 @@ def start_qmon(iface, interval_sec=0.1, outfile="q.txt"):
     return monitor
 
 def start_ping(net):
-    # TODO: Start a ping train from h1 to h2 (or h2 to h1, does it
-    # matter?)  Measure RTTs every 0.1 second.  Read the ping man page
-    # to see how to do this.
+    # 10 pings por segundo de h1 para h2. O sentido importa pouco para o RTT (o ping vai
+    # e volta), mas de h1 o pedido entra na mesma fila do gargalo que o fluxo TCP.
+    h1, h2 = net.get('h1'), net.get('h2')
+    return h1.popen("ping -i 0.1 -D %s > %s/ping.txt" % (h2.IP(), args.dir), shell=True)
 
-    # Hint: Use host.popen(cmd, shell=True).  If you pass shell=True
-    # to popen, you can redirect cmd's output using shell syntax.
-    # i.e. ping ... > /path/to/ping.
-    pass
+def start_cwnd(net):
+    # janela de congestionamento do fluxo, amostrada com ss dentro de h1
+    h1, h2 = net.get('h1'), net.get('h2')
+    mon = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', 'ig_starter',
+                       'cwnd_monitor.py')
+    return h1.popen([sys.executable, mon, '--dst', h2.IP(), '--out',
+                     '%s/cwnd.csv' % args.dir, '--duration', str(args.time + 10)])
 
 def start_webserver(net):
     h1 = net.get('h1')
@@ -114,38 +127,35 @@ def bufferbloat():
         os.makedirs(args.dir)
     os.system("sysctl -w net.ipv4.tcp_congestion_control=%s" % args.cong)
     topo = BBTopo()
-    net = Mininet(topo=topo, host=CPULimitedHost, link=TCLink)
+    net = Mininet(topo=topo, host=Host, link=TCLink)
     net.start()
+    # offloads (TSO/GSO/GRO) distorcem cwnd e fila; nao reaproveitar metricas antigas
+    for node in net.hosts + net.switches:
+        for intf in node.intfList():
+            if intf.name != 'lo':
+                node.cmd('ethtool -K %s tso off gso off gro off 2>/dev/null' % intf.name)
+    for h in net.hosts:
+        h.cmd('sysctl -qw net.ipv4.tcp_no_metrics_save=1')
     # This dumps the topology and how nodes are interconnected through
     # links.
     dumpNodeConnections(net.hosts)
     # This performs a basic all pairs ping test.
     net.pingAll()
 
-    # TODO: Start monitoring the queue sizes.  Since the switch I
-    # created is "s0", I monitor one of the interfaces.  Which
-    # interface?  The interface numbering starts with 1 and increases.
-    # Depending on the order you add links to your network, this
-    # number may be 1 or 2.  Ensure you use the correct number.
+    # Fila do gargalo: o enlace h1-s0 foi criado primeiro (s0-eth1) e o s0-h2 depois
+    # (s0-eth2), entao o buffer de maxq pacotes na direcao h1 -> h2 esta em s0-eth2.
     qmon = start_qmon(iface='s0-eth2',
                       outfile='%s/q.txt' % (args.dir))
 
-    # TODO: Start iperf, webservers, etc.
-    # start_iperf(net)
+    procs = start_iperf(net)
+    procs.append(start_ping(net))
+    procs.append(start_cwnd(net))
 
-    # TODO: measure the time it takes to complete webpage transfer
-    # from h1 to h2 (say) 3 times.  Hint: check what the following
-    # command does: curl -o /dev/null -s -w %{time_total} google.com
-    # Now use the curl command to fetch webpage from the webserver you
-    # spawned on host h1 (not from google!)
-    # Hint: Verify the url by running your curl command without the
-    # flags. The html webpage should be returned as the response.
-
-    # Hint: have a separate function to do this and you may find the
-    # loop below useful.
+    # A medicao do tempo de download da pagina (webserver.py + curl) do roteiro original
+    # nao faz parte desta versao do trabalho (o enunciado diz "nao usado"); a cwnd
+    # (cwnd.csv) entra no lugar dela.
     start_time = time()
     while True:
-        # do the measurement (say) 3 times.
         sleep(5)
         now = time()
         delta = now - start_time
@@ -153,16 +163,15 @@ def bufferbloat():
             break
         print("%.1fs left..." % (args.time - delta))
 
-    # TODO: compute average (and standard deviation) of the fetch
-    # times.  You don't need to plot them.  Just note it in your
-    # README and explain.
-
     # Hint: The command below invokes a CLI which you can use to
     # debug.  It allows you to run arbitrary commands inside your
     # emulated hosts h1 and h2.
     # CLI(net)
 
+    for p in procs:
+        p.terminate()
     qmon.terminate()
+    os.system('pkill -f "iperf -s" 2>/dev/null')
     net.stop()
     # Ensure that all processes you create within Mininet are killed.
     # Sometimes they require manual killing.

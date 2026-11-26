@@ -25,6 +25,7 @@ sudo ./scripts/setup_kernel.sh   # módulos e sysctls; repetir a cada reinício 
 | Parte | Rodar os experimentos | Regenerar gráficos e tabelas | Saídas |
 |---|---|---|---|
 | 2 | `sudo ./run_p2.sh` (~21 min) | `./plot_all.sh p2` | `graficos/p2-q100.png`, `graficos/p2-q20.png`, `resultados/p2.txt` |
+| B1 | `sudo ./bufferbloat/run.sh` (~7 min) | (o próprio `run.sh`) | `graficos/b1-reno-{buffer,rtt,cwnd}-q{20,100}.png` |
 
 `./plot_all.sh` sem argumentos regenera tudo a partir de `dados/`, sem rodar o Mininet.
 Os scripts `run_*.sh` retomam de onde pararam (pulam rodadas que já têm `metadata.json`).
