@@ -82,6 +82,8 @@ Cuidados específicos do WSL2:
 | Parte | Rodar os experimentos | Regenerar gráficos e tabelas | Saídas |
 |---|---|---|---|
 | 2 | `sudo ./run_p2.sh` (~21 min) | `./plot_all.sh p2` | `graficos/p2-q100.png`, `graficos/p2-q20.png`, `resultados/p2.txt` |
+| 4 | `sudo ./run_p4.sh` (~13 min, Reno n=2 B=100, 5 rep.) | `./plot_all.sh p4` (em construção) | `graficos/p4-cwnd-reno-n2-B100.png`, `graficos/p4-decomp-reno-n2-B100.png` |
+| B7/B8 | `sudo ETAPA=bonus ./run_p4.sh` (~3 h) | `./plot_all.sh p4` | tabela de razões por (algoritmo, n, B) |
 | B1 | `sudo ./bufferbloat/run.sh` (~7 min) | (o próprio `run.sh`) | `graficos/b1-reno-{buffer,rtt,cwnd}-q{20,100}.png` |
 
 `./plot_all.sh` sem argumentos regenera tudo a partir de `dados/`, sem rodar o Mininet.
