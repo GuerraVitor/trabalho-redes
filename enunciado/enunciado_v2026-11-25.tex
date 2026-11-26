@@ -1,0 +1,1327 @@
+% =====================================================================
+%  Trabalho de Redes -- IC/UFRJ
+%  Bufferbloat, controle de congestionamento e a geometria da informacao do AIMD
+%  Compila com pdflatex (2 passagens). No Overleaf compila sem ajustes.
+% =====================================================================
+\documentclass[11pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[brazilian]{babel}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,mathtools}
+\usepackage{microtype}
+\usepackage[margin=2.5cm]{geometry}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{xcolor}
+\usepackage{enumitem}
+\usepackage{tikz}
+\usepackage{pgfplots}
+\pgfplotsset{compat=1.18}
+\usetikzlibrary{arrows.meta,positioning,calc,shapes.geometric}
+\usepackage[most]{tcolorbox}
+\usepackage{listings}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,urlcolor=blue!50!black,citecolor=blue!50!black]{hyperref}
+
+% --------------------------------------------------------------------- parametros editaveis
+\newcommand{\semestre}{2026/2}
+\newcommand{\dataPreliminar}{16 (quarta-feira) e 18 (sexta-feira) de dezembro de 2026}
+\newcommand{\dataFinal}{23 de dezembro de 2026 (quarta-feira)}
+\newcommand{\dataNotas}{4 de janeiro de 2027}
+\newcommand{\tamanhoGrupo}{5}
+\newcommand{\linkCodigo}{https://tinyurl.com/redes20262trabalho}
+
+% --------------------------------------------------------------------- cores e marcadores de nivel
+\definecolor{cfair}{RGB}{30,110,180}
+\definecolor{ceff}{RGB}{200,80,30}
+\definecolor{ctraj}{RGB}{40,40,40}
+\definecolor{nv1}{RGB}{46,139,87}
+\definecolor{nv2}{RGB}{30,110,180}
+\definecolor{nv3}{RGB}{200,110,0}
+\definecolor{nv4}{RGB}{160,30,60}
+
+\newcommand{\tagnivel}[2]{\tikz[baseline=(t.base)]\node[fill=#1,text=white,rounded corners=2pt,inner sep=2.2pt,font=\footnotesize\bfseries\sffamily](t){#2};}
+\DeclareRobustCommand{\basico}{\tagnivel{nv1}{BÁSICO}}
+\DeclareRobustCommand{\inter}{\tagnivel{nv2}{INTERMEDIÁRIO}}
+\DeclareRobustCommand{\avancado}{\tagnivel{nv3}{AVANÇADO}}
+\DeclareRobustCommand{\pesquisa}{\tagnivel{nv4}{PESQUISA}}
+\newcommand{\pontos}[1]{\noindent{\sffamily\small\color{gray!60!black}Valor: #1}\par\smallskip}
+
+\newtcolorbox{caixa}[2][]{colback=#2!5,colframe=#2!70!black,fonttitle=\bfseries\sffamily,
+  boxrule=0.6pt,arc=2pt,left=6pt,right=6pt,top=4pt,bottom=4pt,#1}
+
+% --------------------------------------------------------------------- matematica
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\AM}{\operatorname{AM}}
+\newcommand{\GM}{\operatorname{GM}}
+\newcommand{\Dis}{D_{\mathrm{IS}}}
+\newcommand{\ones}{\mathbf{1}}
+
+% --------------------------------------------------------------------- codigo
+\lstdefinestyle{sh}{language=bash,basicstyle=\ttfamily\small,columns=fullflexible,
+  keepspaces=true,backgroundcolor=\color{gray!8},frame=single,rulecolor=\color{gray!40},
+  breaklines=true,showstringspaces=false,commentstyle=\color{gray!70!black},literate={-}{{-}}1}
+\lstdefinestyle{py}{language=Python,basicstyle=\ttfamily\small,columns=fullflexible,
+  keepspaces=true,backgroundcolor=\color{gray!8},frame=single,rulecolor=\color{gray!40},
+  breaklines=true,showstringspaces=false,commentstyle=\color{gray!70!black},literate={-}{{-}}1,
+  keywordstyle=\color{blue!60!black}\bfseries}
+
+\setlist{itemsep=2pt,topsep=4pt}
+\setlength{\parskip}{3pt}
+\setlength{\emergencystretch}{3em}
+\makeatletter\g@addto@macro\UrlBreaks{\do\-\do\.\do\_}\makeatother
+
+\title{\bfseries Trabalho de Redes \semestre{} -- IC/UFRJ\\[4pt]
+\large Bufferbloat, controle de congestionamento e\\ a geometria da informação do AIMD}
+\author{Prof. Daniel Menasché e Prof. Heudson Mirandola}
+\date{}
+
+\begin{document}
+\maketitle
+\vspace{-1.2cm}
+
+% =====================================================================
+\begin{caixa}[title=Resumo do trabalho em uma caixa]{gray}
+Você vai usar o Mininet para emular uma rede com um roteador gargalo e medir, no
+\emph{kernel Linux real}, a janela de congestionamento de vários fluxos TCP. O trabalho
+começa com um estudo curto de \emph{bufferbloat}, para aprender o ambiente, e depois
+usa uma lente nova --- a \textbf{geometria da informação do AIMD} --- para medir
+\emph{justiça} e \emph{eficiência} como duas componentes ortogonais de uma única
+distância. Várias previsões dessa teoria foram verificadas apenas em simulação
+numérica; até onde sabemos, \textbf{nunca foram testadas contra uma pilha TCP real}.
+É aí que vocês entram.
+
+\smallskip
+\begin{tabularx}{\linewidth}{@{}lX@{}}
+\basico & tarefas guiadas, com passo a passo; todos devem conseguir fazer.\\
+\inter & exige escrever código de medição e análise; respostas não são únicas.\\
+\avancado & exige desenho experimental próprio e interpretação cuidadosa.\\
+\pesquisa & problemas em aberto; bons resultados podem entrar em artigo (Seção~\ref{sec:coautoria}).
+\end{tabularx}
+
+\smallskip
+A parte obrigatória (Partes 1 a 5) vale 10 pontos. A Parte 6 (bônus e extras) e a
+Parte 7 (trilha de pesquisa) são opcionais.
+\end{caixa}
+
+\section*{Entrega}
+\begin{itemize}
+\item \textbf{Apresentações dos resultados preliminares}, com slides, para discussão em
+sala: \dataPreliminar. Mostrem pelo menos as Partes 2 e 4, inclusive o que ainda
+não deu certo: é para isso que serve a discussão.
+\item \textbf{Entrega final do relatório}, levando em conta a discussão em sala: até
+\dataFinal. Esse prazo é firme: as notas precisam ser lançadas até \dataNotas.
+\item Grupos de até \tamanhoGrupo{} alunos. Cada grupo mantém um repositório no GitHub
+desde a primeira semana (Seção~\ref{sec:repro}).
+\end{itemize}
+
+\paragraph{Cronograma sugerido.} São pouco mais de três semanas, em paralelo com outras
+disciplinas. A parte obrigatória foi dimensionada para isso; os bônus são para quem
+tiver tempo. Dividam o trabalho: enquanto uma pessoa roda experimentos, outra escreve a
+análise da parte anterior.
+\begin{itemize}
+\item até 2/12: Partes 1 e 2 (ambiente funcionando e bufferbloat);
+\item até 9/12: Parte 3 e primeiras rodadas da Parte 4;
+\item até 16/12: repetições da Parte 4, Parte 5 e slides;
+\item 16 ou 18/12: apresentação preliminar;
+\item até 23/12: relatório final, incorporando a discussão em sala.
+\end{itemize}
+
+\tableofcontents
+
+% =====================================================================
+\section{Visão geral}
+
+Começamos com um estudo curto do fenômeno do \emph{bufferbloat} com TCP Reno: ele serve
+para montar o ambiente e aprender a medir a janela de congestionamento, a fila do
+roteador e o RTT, que são a matéria-prima de todo o resto. Essa parte é baseada no projeto
+de Kurtis Heimerl e Matt Johnson para a disciplina CSE~461 da Universidade de Washington
+(\url{https://courses.cs.washington.edu/courses/cse461/22wi/projects/project3/}).
+
+Em seguida, usamos o mesmo ambiente para fazer perguntas mais finas sobre a
+\emph{dinâmica} do controle de congestionamento:
+\begin{itemize}
+\item Quando dois fluxos Reno começam com janelas diferentes, quão rápido eles ficam
+“justos”? A teoria prevê que a injustiça cai por um fator $\beta^2$ a cada ciclo de
+perda ($\beta=1/2$ no Reno). Isso vale no Linux?
+\item Por que um fluxo com RTT duas vezes maior recebe às vezes metade da banda e às
+vezes um quarto? A teoria diz que a resposta depende do \emph{grau de sincronização}
+das perdas, com uma fórmula explícita. Até onde sabemos, essa fórmula nunca foi
+testada numa pilha TCP real. (Esta pergunta está nos bônus.)
+\item O CUBIC tem expoente de justiça $4/3$ e o Reno tem $2$. O que isso significa, e
+como se mede?
+\end{itemize}
+
+A Seção~\ref{sec:primer} apresenta toda a teoria necessária, e o
+Apêndice~\ref{app:deriv} traz as derivações. O código de apoio, inclusive dois scripts
+de verificação numérica da teoria (\texttt{simula\_aimd.py} e \texttt{simula\_cubic.py}),
+está no repositório público \url{https://github.com/danielsadoc/trabalho-redes-ig}.
+
+\subsection*{Metas de aprendizado}
+\begin{itemize}
+\item Visualizar o “dente de serra” da janela de congestionamento e a ocupação de
+buffer do roteador; entender por que buffers grandes levam a desempenho ruim.
+\item Entender AIMD como \emph{dois movimentos geométricos}: o aumento aditivo melhora
+a justiça, a redução multiplicativa mexe só na eficiência.
+\item Medir justiça, eficiência e expoentes de escala em experimentos reais, com
+barras de erro.
+\item Produzir experimentos \emph{reprodutíveis}: qualquer pessoa deve regenerar seus
+gráficos com um único comando.
+\end{itemize}
+
+% =====================================================================
+\section{Leituras}
+\label{sec:leituras}
+
+\paragraph{Bufferbloat e Mininet.}
+\begin{itemize}
+\item J.~Gettys e K.~Nichols, \emph{Bufferbloat: Dark Buffers in the Internet}, ACM
+Queue, 2011. Ver também \url{https://pt.wikipedia.org/wiki/Bufferbloat}.
+\item Mininet walkthrough: \url{http://mininet.org/walkthrough/} e a API Python:
+\url{http://mininet.org/api/annotated.html}.
+\item N.~Handigol et al., \emph{Reproducible network experiments using
+container-based emulation}, ACM CoNEXT, 2012 (por que e quando o Mininet é confiável).
+\end{itemize}
+
+\paragraph{Controle de congestionamento.}
+\begin{itemize}
+\item Kurose \& Ross, \emph{Redes de Computadores e a Internet}, Seção 3.7 (TCP) e
+Seção 4.2.4 (tamanho de buffer).
+\item D.-M.~Chiu e R.~Jain, \emph{Analysis of the increase and decrease algorithms for
+congestion avoidance}, 1989 --- origem do diagrama da Figura~\ref{fig:chiujain}.
+\item M.~Mathis et al., \emph{The macroscopic behavior of the TCP congestion avoidance
+algorithm}, 1997 --- a “lei da raiz quadrada”.
+\item G.~Appenzeller, I.~Keslassy e N.~McKeown, \emph{Sizing router buffers}, ACM
+SIGCOMM 2004, \url{https://dl.acm.org/doi/10.1145/1030194.1015499}.
+\item S.~Ha, I.~Rhee e L.~Xu, \emph{CUBIC: a new TCP-friendly high-speed TCP variant},
+2008; e a RFC~9438 (CUBIC).
+\end{itemize}
+
+\paragraph{Justiça, utilidade e geometria.}
+\begin{itemize}
+\item F.~Kelly, A.~Maulloo e D.~Tan, \emph{Rate control for communication networks:
+shadow prices, proportional fairness and stability}, J.~Oper.~Res.~Soc., 1998.
+\item J.~Mo e J.~Walrand, \emph{Fair end-to-end window-based congestion control},
+IEEE/ACM Trans.~Networking, 2000 --- a justiça $\alpha$.
+\item D.~Bansal e H.~Balakrishnan, \emph{Binomial congestion control algorithms}, IEEE
+INFOCOM, 2001 --- a família binomial.
+\item Para quem quiser ir além: S.~Amari, \emph{Information Geometry and Its
+Applications}, Springer, 2016, Caps.~1--2.
+\end{itemize}
+
+% =====================================================================
+\section{A ideia, com o mínimo de matemática}
+\label{sec:primer}
+
+Esta seção explica o que vamos medir e o que esperar. Cada fórmula vem com uma leitura
+em português, e o \texttt{ig\_metrics.py} já calcula tudo. A teoria geral e as
+demonstrações estão nos Apêndices~\ref{app:teoria} e~\ref{app:deriv}: leia-os se tiver
+curiosidade, mas eles não são necessários para a parte obrigatória do trabalho.
+
+\begin{center}
+\small
+\begin{tabular}{@{}cl@{\qquad}cl@{}}
+\toprule
+Símbolo & Significado & Símbolo & Significado\\
+\midrule
+$n$ & número de fluxos & $p$ & probabilidade de perda de um pacote\\
+$x_r$ & janela (ou taxa) do fluxo $r$ & $T_r$ & RTT do fluxo $r$\\
+$c$ & capacidade do gargalo & $s$ & fração de perdas sincronizadas\\
+$\beta$ & fração da janela que sobra na perda & $\alpha$ & expoente de justiça\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\subsection{O AIMD num desenho}
+
+Imagine dois fluxos dividindo um enlace de capacidade $c$. Cada ponto $(x_1,x_2)$ do
+plano é uma divisão possível da banda (Figura~\ref{fig:chiujain}, à esquerda). Dois
+lugares importam: a \emph{reta eficiente} $x_1+x_2=c$, onde o enlace está cheio, e a
+\emph{reta justa} $x_1=x_2$. O ponto ideal $x^\star$ fica no cruzamento das duas.
+
+O TCP Reno faz AIMD. A cada RTT sem perda, cada fluxo soma 1 pacote à janela
+(\emph{aumento aditivo}, AI). A cada perda, a janela cai pela metade (\emph{redução
+multiplicativa}, MD). No desenho:
+\begin{itemize}
+\item no AI os dois fluxos somam o mesmo, e o ponto anda na diagonal: a diferença entre
+eles não muda, mas a proporção melhora, e o ponto se aproxima da reta justa;
+\item na MD os dois caem pela metade, e o ponto anda em direção à origem mantendo a
+proporção $x_1/x_2$: não fica mais justo nem mais injusto, só menos eficiente.
+\end{itemize}
+Repetindo os dois movimentos, o zigue-zague converge para $x^\star$.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[scale=0.55]
+  \draw[->,gray] (0,0) -- (10.8,0) node[right,black,font=\small] {$x_1$};
+  \draw[->,gray] (0,0) -- (0,10.8) node[above,black,font=\small] {$x_2$};
+  \draw[ceff,very thick] (0.4,9.6) -- (9.6,0.4)
+      node[pos=0.04,above right,font=\scriptsize,black] {eficiente: $x_1+x_2=c$};
+  \draw[cfair,very thick,dashed] (0,0) -- (10,10)
+      node[pos=0.97,below right,font=\scriptsize,black] {justa: $x_1=x_2$};
+  \draw[ctraj,thick,-{Stealth[length=2mm]}]
+    (8.500,1.500) -- (4.250,0.750) -- (6.750,3.250) -- (3.375,1.625) --
+    (5.875,4.125) -- (2.938,2.062) -- (5.438,4.562) -- (2.719,2.281) --
+    (5.219,4.781) -- (2.609,2.391) -- (5.109,4.891);
+  \fill[cfair] (5,5) circle (3pt) node[above right,font=\scriptsize,black] {$x^\star$};
+  \fill[ctraj] (8.5,1.5) circle (2.4pt) node[right,font=\scriptsize,black] {$x_0$};
+  \node[font=\scriptsize,ceff] at (7.3,0.55) {MD: radial};
+  \node[font=\scriptsize,cfair] at (2.5,4.2) {AI: diagonal};
+  \begin{scope}[xshift=14cm]
+  \draw[->,gray] (0,0) -- (10.8,0) node[right,black,font=\small] {$x_1$};
+  \draw[->,gray] (0,0) -- (0,10.8) node[above,black,font=\small] {$x_2$};
+  \draw[ceff,very thick] (0.4,9.6) -- (9.6,0.4);
+  \draw[cfair,very thick,dashed] (0,0) -- (10,10);
+  \fill[ctraj] (6,1.5) circle (3pt) node[right,font=\scriptsize] {$x$};
+  \fill[cfair!70!black] (3.75,3.75) circle (3pt) node[above left,font=\scriptsize] {$\hat x$};
+  \fill[cfair] (5,5) circle (3pt) node[above right,font=\scriptsize] {$x^\star$};
+  \draw[gray,densely dotted,thick] (6,1.5) -- (3.75,3.75)
+     node[midway,below left,font=\scriptsize,black] {$\mathcal U$};
+  \draw[ceff,line width=1.6pt] (3.75,3.75) -- (5,5)
+     node[midway,above left,font=\scriptsize,black] {$\mathcal I$};
+  \end{scope}
+\end{tikzpicture}
+\caption{Esquerda: trajetória do AIMD para dois fluxos que perdem pacotes ao mesmo
+tempo (diagrama de Chiu--Jain). Direita: a distância de $x$ até o ideal $x^\star$ se
+divide em duas partes. $\hat x$ é o ponto da reta justa com a mesma vazão total que
+$x$; a injustiça $\mathcal U$ mede o caminho de $x$ até $\hat x$, e a ineficiência
+$\mathcal I$ o de $\hat x$ até $x^\star$. Os comprimentos são ilustrativos.}
+\label{fig:chiujain}
+\end{figure}
+
+\subsection{Duas notas: injustiça e ineficiência}
+
+Para medir o quão longe do ideal estamos, usamos duas quantidades. As duas são sempre
+$\ge0$ e só valem zero no ideal.
+
+\begin{caixa}[title=Para calcular (fluxos com o mesmo RTT)]{cfair}
+Com janelas $x_1,\dots,x_n$, média aritmética $\AM$ e média geométrica $\GM$:
+\begin{itemize}
+\item \textbf{injustiça} $\mathcal U=n\log\dfrac{\AM(x)}{\GM(x)}$: zero quando todos são
+iguais; não muda se todas as janelas forem multiplicadas pelo mesmo número;
+\item \textbf{ineficiência} $\mathcal I=n(\rho-\log\rho-1)$, com
+$\rho=(x_1+\dots+x_n)/c$: zero quando o enlace está exatamente cheio ($\rho=1$);
+\item \textbf{distância total} até o ideal $x^\star_r=c/n$:
+$\Dis(x\|x^\star)=\sum_r\big[x_r/x^\star_r-\log(x_r/x^\star_r)-1\big]$ (a divergência
+de Itakura--Saito).
+\end{itemize}
+E vale sempre
+\begin{equation}
+\Dis(x\|x^\star)=\mathcal U+\mathcal I .
+\label{eq:pitagoras}
+\end{equation}
+\end{caixa}
+
+Como num triângulo retângulo, a distância total se divide em duas partes que não se
+misturam; por isso chamamos \eqref{eq:pitagoras} de \emph{decomposição pitagórica}.
+Um exemplo com $c=10$: em $x=(8,2)$, $\AM=5$ e $\GM=4$, logo
+$\mathcal U=2\log1{,}25\approx0{,}446$; o enlace está cheio, então $\mathcal I=0$. Uma
+perda que corta as duas janelas pela metade leva a $x=(4,1)$: a injustiça continua
+$0{,}446$, porque as proporções não mudaram, e a ineficiência sobe para
+$2(0{,}5-\log0{,}5-1)\approx0{,}386$.
+
+\subsection{O que esperar nos experimentos}
+
+Para o Reno, olhando o estado logo antes de cada perda:
+\begin{enumerate}[label=(\roman*)]
+\item numa perda que atinge todos os fluxos ao mesmo tempo, $\mathcal U$ não muda;
+\item entre perdas, o aumento aditivo diminui $\mathcal U$;
+\item de um ciclo para o outro, $\mathcal U$ cai por um fator $\beta^2$, em que $\beta$ é
+a fração da janela que sobra na perda: no Reno $\beta=1/2$, e $\mathcal U$ cai para um
+quarto a cada ciclo (no CUBIC do Linux, $\beta=0{,}7$);
+\item no regime permanente $\mathcal U\approx0$, e $\mathcal I$ oscila entre $0$ e
+$n(\beta-\log\beta-1)$: é o TCP sondando a banda disponível.
+\end{enumerate}
+Por que $\beta^2$ e não $\beta$? Porque $\mathcal U$ se comporta como o quadrado de uma
+distância (Exercício 3.2).
+
+\subsection{Janela e perda: o expoente \texorpdfstring{$\alpha$}{alfa}}
+
+Se cada pacote se perde com probabilidade $p$, a janela média diminui quando $p$ cresce,
+como uma potência:
+\begin{equation}
+\bar w\;\propto\;p^{-1/\alpha}.
+\label{eq:alpha}
+\end{equation}
+Num gráfico log-log, isso é uma reta de inclinação $-1/\alpha$; a Parte 5 mede essa
+inclinação. O mesmo $\alpha$ diz como o protocolo divide a banda entre fluxos
+diferentes: $\alpha=1$ é a justiça proporcional e $\alpha\to\infty$ é a justiça max-min
+(Apêndice~\ref{app:teoria}).
+
+\begin{center}
+\begin{tabular}{@{}lcc@{}}
+\toprule
+Protocolo & $\alpha$ & inclinação de $\log\bar w$ contra $\log p$\\
+\midrule
+Reno & $2$ & $-1/2$ (lei de Mathis, $\bar w\approx1{,}22/\sqrt p$)\\
+CUBIC & $4/3$ & $-3/4$\\
+Scalable TCP$^{*}$ & $1$ & $-1$\\
+\bottomrule
+\end{tabular}
+
+\smallskip
+{\footnotesize $^{*}$No Linux, só com janela acima de 100 pacotes; abaixo disso o
+incremento é de 1 pacote por RTT (Parte 5).}
+\end{center}
+
+\subsection{RTTs diferentes e sincronização das perdas}
+
+\emph{Esta subseção e a próxima só são usadas nos bônus (Parte~6); na primeira leitura,
+podem pular direto para a Parte~1.}
+
+Um fluxo com RTT maior recebe menos banda. Quanto menos depende de as perdas atingirem
+os fluxos juntas ou separadas:
+\begin{equation}
+x_r\;\propto\;T_r^{-2/\alpha_{\rm ef}} .
+\label{eq:rttbias}
+\end{equation}
+Se cada perda atinge um fluxo só (perdas \emph{dessincronizadas}), $\alpha_{\rm ef}=2$ e
+a vazão é proporcional a $1/T_r$: com o dobro do RTT, metade da banda. Se cada perda
+atinge todos (perdas \emph{sincronizadas}), $\alpha_{\rm ef}=1$ e a vazão é proporcional a
+$1/T_r^2$: com o dobro do RTT, um quarto da banda. No meio do caminho, se uma fração $s$
+das perdas atinge todos os fluxos e o resto atinge um só,
+\begin{equation}
+\alpha_{\rm ef}(s)\;=\;1+\frac{1-s}{s\,n+1-s}
+\label{eq:interp}
+\end{equation}
+(Figura~\ref{fig:alphas}). Com muitos fluxos, basta uma pequena fração de perdas
+sincronizadas para o resultado ficar perto do caso sincronizado: o meio do caminho fica
+em $s\approx1/n$, e não em $s=1/2$.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}
+\begin{axis}[width=8cm,height=4.6cm,xmin=0,xmax=1,ymin=1,ymax=2,domain=0:1,samples=120,
+  xlabel={$s$ (fração de perdas que atingem todos os fluxos)},ylabel={$\alpha_{\rm ef}$},
+  legend pos=north east,legend style={font=\scriptsize},tick label style={font=\scriptsize},
+  label style={font=\small}]
+\addplot[cfair,very thick]{1+(1-x)/(3*x+1-x)};
+\addlegendentry{$n=3$}
+\addplot[ceff,very thick,dashed]{1+(1-x)/(10*x+1-x)};
+\addlegendentry{$n=10$}
+\end{axis}
+\end{tikzpicture}
+\caption{O expoente efetivo \eqref{eq:interp} vai de $2$ (perdas dessincronizadas, vazão
+$\propto1/T$) a $1$ (sincronizadas, vazão $\propto1/T^2$).}
+\label{fig:alphas}
+\end{figure}
+
+\paragraph{Como estimar $s$.} Junte as reduções de janela de todos os fluxos em
+\emph{eventos}: reduções que acontecem com menos de $\Delta$ segundos de diferença, com
+$\Delta$ da ordem de um RTT. Seja $\bar m$ o número médio de fluxos atingidos por evento.
+Então
+\begin{equation}
+\hat s=\frac{\bar m-1}{n-1}.
+\label{eq:shat}
+\end{equation}
+Por exemplo, com $n=3$ e quatro eventos que atingem 1, 3, 1 e 2 fluxos, $\bar m=1{,}75$
+e $\hat s=0{,}375$.
+
+\subsection{O que a teoria \emph{não} cobre}
+As previsões acima vêm de um modelo idealizado, sem atraso de realimentação. Ficam de
+fora: (a) estabilidade com atraso; (b) a dinâmica completa do CUBIC, que tem um estado
+extra $W_{\max}$; (c) o dente de serra em redes com mais de um gargalo; (d) detalhes do
+Linux como \emph{slow start}, HyStart, PRR, SACK, pacing e TSO. Medir o quanto cada um
+desses itens desvia das previsões é exatamente o tipo de resultado que interessa a um
+artigo.
+
+% =====================================================================
+\section{Parte 1: Configuração \texorpdfstring{\basico}{}}
+\label{sec:setup}
+
+\paragraph{Ambiente.} O ambiente garantido é o \textbf{Ubuntu 24.04} (numa VM ou numa
+máquina própria): é onde o código e os experimentos de referência foram testados. Quem
+preferir pode usar a VM Vagrant do projeto original (Ubuntu 20.04,
+\url{https://github.com/kaichengyan/mininet-vagrant}), mas ela não foi testada. Registre
+qual ambiente você usou (Seção~\ref{sec:repro}).
+
+\paragraph{Pacotes e verificações.} No Ubuntu 24.04:
+\begin{lstlisting}[style=sh]
+sudo apt-get update
+sudo apt install mininet openvswitch-switch openvswitch-testcontroller iperf iperf3 \
+     ethtool git python3-numpy python3-pandas python3-matplotlib
+git clone https://github.com/danielsadoc/trabalho-redes-ig    # codigo do trabalho
+# atraso, perda e RED; se falhar: sudo apt install linux-modules-extra-$(uname -r)
+sudo modprobe sch_netem; sudo modprobe sch_red
+# algoritmos de controle de congestionamento disponiveis
+sysctl net.ipv4.tcp_available_congestion_control
+sudo modprobe tcp_scalable
+# nao reaproveitar ssthresh/cwnd de conexoes anteriores entre rodadas
+sudo sysctl -w net.ipv4.tcp_no_metrics_save=1
+\end{lstlisting}
+\paragraph{Código.} O trabalho todo usa o pacote \texttt{ig\_starter}
+(\url{https://github.com/danielsadoc/trabalho-redes-ig}), descrito no Apêndice~\ref{app:codigo}:
+\texttt{dumbbell.py} monta a topologia das Partes 2, 4 e 5 e roda o experimento,
+\texttt{cwnd\_monitor.py} amostra a janela com \texttt{ss}, \texttt{ig\_metrics.py} tem as
+métricas da Seção~\ref{sec:primer} e \texttt{plot\_cwnd.py} faz os gráficos de janela,
+fila e RTT. Vocês não precisam escrever código de Mininet na parte obrigatória.
+
+\paragraph{Observações.} Se o Mininet terminar com erro (ou com Control-C), rode
+\texttt{sudo mn -c} antes de recomeçar. O aviso
+“\texttt{sch\_htb: quantum of class \dots\ is big}” que o Mininet imprime pode ser ignorado.
+
+% =====================================================================
+\section{Parte 2: Bufferbloat e o dente de serra do Reno \texorpdfstring{\basico}{}}
+\pontos{2,5 pontos}
+\label{sec:bufferbloat}
+
+Esta parte é o pré-requisito prático de todo o resto: rodar uma topologia no Mininet e
+medir, ao mesmo tempo, a janela de congestionamento, a fila do roteador e o RTT.
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[node distance=2.6cm,
+  host/.style={draw,rounded corners,minimum width=1.3cm,minimum height=0.8cm,font=\small,fill=gray!10},
+  sw/.style={draw,circle,minimum size=0.9cm,font=\small,fill=cfair!15}]
+  \node[host] (h1) {h1};
+  \node[sw,right=of h1] (s0) {s1};
+  \node[sw,right=of s0] (s2) {s2};
+  \node[host,right=of s2] (h2) {r};
+  \draw[thick] (h1) -- node[above,font=\scriptsize]{acesso} (s0);
+  \draw[thick,ceff] (s0) -- node[above,font=\scriptsize]{1,5 Mb/s (gargalo)}
+     node[below,font=\scriptsize]{buffer $q$ pacotes} (s2);
+  \draw[thick] (s2) -- (h2);
+\end{tikzpicture}
+\caption{Topologia da Parte 2 (o \texttt{dumbbell.py} com um único emissor). RTT
+mínimo entre h1 e r: 20\,ms.}
+\label{fig:topo1}
+\end{figure}
+
+Na topologia da Figura~\ref{fig:topo1}, h1 envia para r através de um enlace lento
+(1,5\,Mb/s) com buffer de $q$ pacotes. O RTT de propagação é 20\,ms. O \texttt{dumbbell.py}
+faz tudo de uma vez: inicia um fluxo TCP Reno de longa duração, registra a janela de
+congestionamento (\texttt{-{}-n 1}), a ocupação da fila do gargalo (\texttt{-{}-qmon}) e
+10 pings por segundo de h1 para r (\texttt{-{}-ping}):
+\begin{lstlisting}[style=sh]
+cd trabalho-redes-ig/ig_starter
+sudo python3 dumbbell.py --n 1 --cc reno --rtt-ms 20 --bw 1.5 --buffer 100 \
+     --duration 200 --qmon --ping --out dados/p2/q100
+python3 plot_cwnd.py dados/p2/q100 -o p2-q100.png
+\end{lstlisting}
+O \texttt{plot\_cwnd.py} faz um gráfico com três painéis (janela, fila e RTT) e imprime a
+média e o desvio padrão do RTT. Repita com $q=20$ (\texttt{-{}-buffer 20}). Com $q=100$
+o RTT passa de meio segundo e cada dente de serra dura cerca de 30\,s, por isso cada
+rodada tem 200\,s.
+
+\paragraph{Gráficos obrigatórios:} \path{p2-q100.png} e \path{p2-q20.png}.
+
+\begin{caixa}[title=Erros comuns em semestres anteriores,breakable]{ceff}
+As turmas de 2024/2 e 2025/1 fizeram uma versão anterior desta parte, e os mesmos
+tropeços se repetiram em vários relatórios. Evitem:
+\begin{itemize}
+\item \textbf{Números impossíveis, sem comentário.} Com $C=1{,}5$\,Mb/s, cada pacote de
+1500 bytes na fila acrescenta 8\,ms ao RTT. O RTT do ping fica, portanto, entre 20\,ms e
+cerca de $20+8q$\,ms: até uns 180\,ms com $q=20$ e uns 820\,ms com $q=100$. Houve
+relatórios com RTT “raramente acima de 30\,ms” com $q=20$, ou acima de 1\,s com
+$q=100$, sem nenhuma discussão. Façam essa conta antes de rodar: se o dado sair da
+faixa, o erro está na configuração.
+\item \textbf{Vazão total maior que a capacidade}, ou muito menor sem explicação. A soma
+das vazões não passa de $C$; se ficar muito abaixo, verifiquem a CPU da VM
+(Seção~\ref{sec:repro}).
+\item \textbf{Rótulos trocados.} Chamar $q=20$ de “buffer grande”, ou trocar os arquivos
+de $q=20$ e $q=100$. Confiram: o máximo do gráfico da fila tem de bater com $q$.
+\item \textbf{Conclusão tirada de uma rodada só.} Grupos diferentes chegaram a conclusões
+opostas sobre qual buffer era melhor, em geral com uma única rodada e poucas amostras.
+Uma diferença só conta se for maior que a variação entre repetições.
+\item \textbf{Explicação que não usa os próprios dados.} Parágrafos genéricos, que
+serviriam para qualquer relatório e às vezes contradiziam a tabela logo acima. Cada
+explicação deve citar um número que vocês mediram.
+\item \textbf{Mecanismo errado.} O Reno reduz a janela quando detecta \emph{perda} (ou
+marca ECN), não quando o RTT aumenta. O RTT alto é consequência da fila cheia, não o
+sinal que o Reno usa.
+\item \textbf{Código inacessível.} Cerca de metade dos grupos não deixou link para o
+código, ou deixou um link quebrado. Ponham o link do repositório na primeira página do
+relatório e testem.
+\end{itemize}
+\end{caixa}
+
+\subsection*{Perguntas da Parte 2}
+\begin{enumerate}[label=2.\arabic*]
+\item Leia a classe da topologia no \texttt{dumbbell.py} e os comandos \texttt{tc}
+gravados no \texttt{metadata.json} da rodada. Em que interface fica o buffer de $q$
+pacotes, e em qual é aplicado o atraso de propagação? O comentário no início do arquivo
+explica por que o atraso fica no emissor: resuma o motivo com suas palavras.
+\item Qual o RTT médio do ping e seu desvio padrão para $q=20$ e $q=100$? Escreva a
+relação entre RTT e ocupação da fila (dica: atraso de fila $=$ ocupação / taxa de
+serviço) e confira com os seus dados.
+\item No gráfico de cwnd, meça a janela no pico e no vale do dente de serra. Compare o
+pico com $\mathrm{BDP}+q$ e a razão vale/pico com $\beta=1/2$. Você vai usar
+$c=\mathrm{BDP}+B$ como “capacidade” na Parte 4.
+\item Por que um buffer grande aumenta o atraso sem aumentar a vazão? Qual o menor
+buffer que mantém o gargalo sempre ocupado com um único fluxo Reno (regra
+$B=\mathrm{RTT}\cdot C$)? Confira nos seus dados.
+\end{enumerate}
+
+% =====================================================================
+\section{Parte 3: Aquecimento teórico e computacional \texorpdfstring{\basico}{}\ \texorpdfstring{\inter}{}}
+\pontos{1,0 ponto}
+\label{sec:aquecimento}
+
+Estes exercícios garantem que vocês sabem calcular as quantidades que serão medidas.
+Respostas curtas, com as contas.
+
+\begin{enumerate}[label=3.\arabic*]
+\item \basico\ Confira os números do exemplo da Seção~\ref{sec:primer} ($x=(8,2)$ e
+$x=(4,1)$, com $c=10$), à mão e com o \texttt{ig\_metrics.py}. Depois mostre que
+$\mathcal U(\lambda x)=\mathcal U(x)$ para todo $\lambda>0$ e conclua que uma perda que
+atinge todos os fluxos não muda $\mathcal U$.
+\item \inter\ Para $n=2$ e $x=(1+u,1-u)$, calcule $\mathcal U$ para $u=0{,}2$, $0{,}1$ e
+$0{,}05$ e compare com $u^2$. Se a cada ciclo o desvio $u$ encolhe por um fator $\beta$,
+por quanto encolhe $\mathcal U$? Isso explica por que a razão por ciclo é $\beta^2$ e
+não $\beta$.
+\end{enumerate}
+
+% =====================================================================
+\section{Parte 4: Medindo a decomposição pitagórica \texorpdfstring{\inter}{}}
+\pontos{4,0 pontos}
+\label{sec:pitagoras}
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  host/.style={draw,rounded corners,minimum width=1.1cm,minimum height=0.7cm,font=\small,fill=gray!10},
+  sw/.style={draw,circle,minimum size=0.9cm,font=\small,fill=cfair!15}]
+  \node[host] (a1) at (0,1.6) {h1};
+  \node[host] (a2) at (0,0.5) {h2};
+  \node[font=\small] at (0,-0.35) {$\vdots$};
+  \node[host] (an) at (0,-1.2) {h$n$};
+  \node[sw] (s1) at (3.2,0.2) {s1};
+  \node[sw] (s2) at (7.6,0.2) {s2};
+  \node[host] (rx) at (10.2,0.2) {r};
+  \draw[thick] (a1) -- node[above,sloped,font=\scriptsize]{$d_1$} (s1);
+  \draw[thick] (a2) -- node[above,sloped,font=\scriptsize]{$d_2$} (s1);
+  \draw[thick] (an) -- node[below,sloped,font=\scriptsize]{$d_n$} (s1);
+  \draw[thick,ceff] (s1) -- node[above,font=\scriptsize]{gargalo $C$}
+     node[below,font=\scriptsize]{buffer $B$ pacotes} (s2);
+  \draw[thick] (s2) -- (rx);
+\end{tikzpicture}
+\caption{Topologia “haltere” (\emph{dumbbell}) usada nas Partes 2, 4 e 5 e nos bônus. Na
+Parte 4 todos os atrasos de acesso são iguais; no bônus de sincronização eles diferem.}
+\label{fig:dumbbell}
+\end{figure}
+
+\paragraph{Montagem.} Use a topologia da Figura~\ref{fig:dumbbell} com $n$ emissores
+h1,\dots,h$n$ e um receptor r. Valores de referência: $C=10$\,Mb/s, RTT de propagação
+de 40\,ms \emph{igual} para todos os fluxos, $B=100$ pacotes no buffer do
+enlace s1$\to$s2 (só nele). Cada emissor abre \emph{um} fluxo iperf3 para r, com o
+algoritmo escolhido por fluxo (\texttt{iperf3 -C reno}); o \texttt{dumbbell.py} já faz
+isso. Os fluxos começam
+\emph{escalonados}: o fluxo $i$ começa em $t=15(i-1)$\,s, para criar uma injustiça
+inicial grande. Duração mínima: 120\,s depois do início do último fluxo.
+
+\paragraph{Medição.} Amostre a cada 10\,ms, para cada fluxo, \texttt{cwnd},
+\texttt{ssthresh} e \texttt{rtt} (o \texttt{dumbbell.py} chama o
+\texttt{cwnd\_monitor.py} em cada emissor e grava um CSV por fluxo).
+Como os RTTs de propagação são iguais, use $x_r=\texttt{cwnd}_r$ (em pacotes) e
+$\mu=\ones$. Para a capacidade, use $c=\mathrm{BDP}+B$ em pacotes, e compare com a média
+de $\sum_r\texttt{cwnd}_r$ imediatamente antes das perdas.
+
+\paragraph{O que fazer.}
+\begin{enumerate}[label=4.\arabic*]
+\item \basico\ Plote $\texttt{cwnd}_r(t)$ de todos os fluxos no mesmo gráfico, para
+$n=2$, Reno, $B=100$. Identifique visualmente os eventos de perda.
+\item \inter\ Plote $\mathcal U(t)$, $\mathcal I(t)$ e $\Dis(x(t)\|x^\star)$ no mesmo
+gráfico (escala log no eixo $y$ para $\mathcal U$). Confira numericamente a identidade
+\eqref{eq:pitagoras} nos seus dados.
+\item \inter\ Implemente \texttt{detect\_backoffs} em \texttt{ig\_metrics.py} para
+detectar automaticamente os instantes de perda. Use as mudanças de
+\texttt{ssthresh}: no Linux a cwnd cai aos poucos durante a recuperação (PRR,
+RFC~6937), ao longo de cerca de um RTT, então quedas grandes entre duas amostras
+seguidas são raras. Para cada perda, compare
+$\mathcal U$ imediatamente antes e imediatamente depois. A previsão (i) da
+Seção~\ref{sec:primer} --- MD não muda $\mathcal U$ --- vale? Quando falha, quantos
+fluxos reduziram a janela naquele evento?
+\item \inter\ Amostrando antes de cada perda, estime a razão
+$\mathcal U_{m+1}/\mathcal U_m$ e compare com $\beta^2=0{,}25$. Use só os ciclos depois que
+todos os fluxos saíram do \emph{slow start} e antes de $\mathcal U$ cair no nível do
+ruído de medição (como a cwnd é inteira, para $n=2$ esse piso é da ordem de
+$(2\bar w)^{-2}$). Quantos ciclos limpos você conseguiu?
+\end{enumerate}
+
+\paragraph{Entregáveis obrigatórios:}
+\begin{itemize}
+\item \path{p4-cwnd-reno-n2-B100.png} e \path{p4-decomp-reno-n2-B100.png};
+\item a razão média por ciclo (com IC 95\%, de pelo menos 3 repetições) para Reno com
+$n=2$ e $B=100$.
+\end{itemize}
+
+% =====================================================================
+\section{Parte 5: Leis de escala janela \texorpdfstring{$\times$}{x} perda \texorpdfstring{\inter}{}}
+\pontos{2,5 pontos}
+\label{sec:escala}
+
+O objetivo é medir o expoente $\alpha$ de \eqref{eq:alpha} no Linux.
+
+\paragraph{Montagem.} Um único fluxo através do gargalo (\texttt{dumbbell.py -{}-n 1 -{}-loss}). Introduza
+perda aleatória independente por pacote com probabilidade $p$ \emph{na interface de saída
+do switch} (não no emissor: perdas na fila local do emissor são vistas pelo TCP de outra
+forma). No \texttt{dumbbell.py}, \texttt{-{}-loss} é em \emph{porcento}, como no netem. Use uma capacidade alta
+o bastante (por exemplo 50\,Mb/s) e um buffer grande o bastante para que quase todas as
+perdas sejam as aleatórias. Valores de referência: RTT de 100\,ms, 200\,s por rodada e
+quatro valores de $p$: $2\times10^{-4}$, $10^{-3}$, $5\times10^{-3}$ e $2\times10^{-2}$.
+Por exemplo, para $p=10^{-3}$:
+\begin{lstlisting}[style=sh]
+sudo python3 dumbbell.py --n 1 --cc reno --rtt-ms 100 --bw 50 --buffer 2000 \
+     --loss 0.1 --duration 200 --out dados/p5/reno-p1e-3/rep1
+\end{lstlisting}
+São 4 valores $\times$ 3 repetições $\times$ 200\,s, cerca de 40 minutos de máquina:
+deixem rodando com um script enquanto fazem outra coisa.
+
+\paragraph{O que fazer.}
+\begin{enumerate}[label=5.\arabic*]
+\item \basico\ Para Reno, meça a janela média $\bar w(p)$ (a média de
+\texttt{cwnd\_pkts}, descartando os primeiros 20\,s) e plote $\log\bar w$ contra
+$\log p$. Ajuste uma reta e estime $\hat\alpha=-1/\text{inclinação}$, com intervalo de
+confiança (repita cada ponto pelo menos 3 vezes). Compare com a lei de Mathis
+$\bar w\approx1{,}22/\sqrt p$.
+\item \inter\ Quantos eventos de perda cada ponto contém? Discuta o compromisso entre
+duração do experimento e precisão de $\hat\alpha$. (O \texttt{simula\_aimd.py} usa
+$2\times10^5$ RTTs por ponto; qual a duração equivalente no seu experimento?)
+\end{enumerate}
+
+\paragraph{Gráfico obrigatório:} \path{p5-scaling.png}, com o Reno em escala log-log,
+a reta teórica e as barras de erro.
+
+% =====================================================================
+\section{Parte 6: Bônus e extras \texorpdfstring{\avancado}{}}
+\pontos{bônus de até 2,0 pontos, somados com a Parte 7}
+\label{sec:bonus}
+
+Tudo nesta parte é opcional: façam primeiro a parte obrigatória. Cada item bem feito
+vale até 0,5 ponto de bônus; somados com a trilha de pesquisa (Parte 7), os bônus valem
+até 2,0 pontos, e a nota final continua
+limitada a 10. Os itens estão agrupados pela parte do trabalho que estendem: escolham os que
+mais interessarem ao grupo.
+
+\subsection*{Extensões das Partes 2 e 3}
+\begin{enumerate}[label=B\arabic*,series=bonus]
+\item \basico\ \textbf{O roteiro original.} Faça a Parte 2 como no projeto original,
+completando os \texttt{TODO}s do \texttt{bufferbloat.py}, que monta a topologia e as
+medições do zero:
+\begin{lstlisting}[style=sh]
+wget --no-check-certificate 'https://docs.google.com/uc?export=download&id=12A0GGl7EJvKhBogz6H_fbzH33ZQT9FBQ' -O bufferbloat.zip
+\end{lstlisting}
+(também em \url{\linkCodigo}). No Ubuntu 24.04, troque \texttt{host=CPULimitedHost} por
+\texttt{host=Host} (importe \texttt{Host} de \texttt{mininet.node}): o
+\texttt{CPULimitedHost} depende de cgroups v1 e falha com
+“\texttt{cgroups not mounted on /sys/fs/cgroup}”. Seus gráficos batem com os do
+\texttt{dumbbell.py}?
+\item \inter\ \label{b:appenzeller}O livro (Seção 4.2.4) cita a regra $B=\mathrm{RTT}\cdot C/\sqrt N$ de Appenzeller
+et al. Ela supõe que os $N$ fluxos estão \emph{dessincronizados}. Por quê? O que
+aconteceria com a regra se as perdas fossem perfeitamente sincronizadas? (Veja o bloco sobre sincronização, mais abaixo.)
+\item \basico\ Calcule a amplitude $n(\beta-\log\beta-1)$ da oscilação de $\mathcal I$
+no regime permanente para Reno e CUBIC com $n=2$ e $n=3$.
+\item \inter\ Leia as funções \texttt{unfairness}, \texttt{inefficiency} e
+\texttt{itakura\_saito} de \texttt{ig\_metrics.py} e confira que implementam as fórmulas
+do Apêndice~\ref{app:teoria}. Escreva um teste (\texttt{test\_ig\_metrics.py}) que verifica a
+identidade \eqref{eq:pitagorasA} em 1000 pontos aleatórios com erro $<10^{-10}$, para
+$\mu=\ones$ e para $\mu=(1,1/4,1/9)$, e que verifica $\mathcal U(\lambda x)=\mathcal U(x)$.
+\item \basico\ Usando $\alpha=k+l+1$, acrescente à tabela do Apêndice~\ref{app:teoria} as
+linhas de IIAD $(k,l)=(1,0)$, SQRT $(k,l)=(1/2,1/2)$ e do binomial $(k,l)=(1,1)$ que o
+\texttt{simula\_aimd.py} testa. Quais têm o mesmo $\alpha$ do Reno? Por que isso os torna
+“amigáveis ao TCP”? Qual é o mais justo no sentido de $\alpha$?
+\item \inter\ Rode \texttt{simula\_aimd.py}. Explique, com suas palavras, o que o item 3
+da saída verifica e por que a razão por ciclo começa em $\approx0{,}33$ e converge para
+$0{,}25$.
+\end{enumerate}
+
+\subsection*{Extensões da Parte 4}
+\begin{enumerate}[resume*=bonus]
+\item \inter\ Repita a pergunta 4.4 para CUBIC. Se o CUBIC fosse um AIMD com $\beta=0{,}7$, a razão
+seria $0{,}49$. O que você mede? Por que o CUBIC não precisa seguir essa previsão?
+\item \inter\ Repita a Parte 4 com $n=3$ e $n=4$, e com $B=20$. O que acontece com a fração de
+perdas que atingem todos os fluxos ao mesmo tempo? Como isso afeta as previsões (i) e
+(iii)?
+\item \inter\ \textbf{Qual distância é a certa?} Nos dados da Parte 4, nas amostras imediatamente anteriores a
+cada perda, calcule três distâncias até o ideal $x^\star$: a euclidiana
+$\|x-x^\star\|^2$, a divergência de Kullback--Leibler
+$\sum_r[x^\star_r\log(x^\star_r/x_r)-x^\star_r+x_r]$ e a de Itakura--Saito
+$\Dis(x^\star\|x)$. Em que fração dos ciclos cada uma \emph{aumenta}? Qual fica mais
+perto de ser sempre decrescente? (No modelo fluido, $\Dis(x^\star\|x)$ nunca aumenta;
+veja o Apêndice~\ref{app:deriv}.)
+\item \avancado\ \textbf{Dá para forçar a sincronização?} Com
+\texttt{-{}-red -{}-ecn -{}-red-min 0.3 -{}-red-max 0.32 -{}-red-prob 1}, o roteador
+marca com ECN \emph{todos} os pacotes enquanto a fila média estiver acima de cerca de 30\%
+do buffer, em vez de descartar. A intuição é que todos os fluxos reduziriam a janela no
+mesmo RTT. Repita o cenário de 4.1 assim e compare $\hat s$ e a razão
+$\mathcal U_{m+1}/\mathcal U_m$ com o drop-tail. A intuição se confirma? Se não, explique
+por quê. (Pense na média móvel que o RED usa, em quanto tempo a fila média fica acima do
+limiar e em quantas vezes cada fluxo reduz a janela nesse intervalo.)
+\end{enumerate}
+
+\subsection*{Extensões da Parte 5}
+\begin{enumerate}[resume*=bonus]
+\item \inter\ Repita a pergunta 5.1 para Scalable TCP (\texttt{-C scalable}). Leia o código-fonte de
+\texttt{tcp\_scalable.c} do seu kernel, identifique a fração retida $\beta$ e o
+incremento, e explique por que ele só é MIMD ($\alpha=1$) quando a janela passa de
+\texttt{TCP\_SCALABLE\_AI\_CNT} pacotes (100 nos kernels recentes). Abaixo disso, que
+$\alpha$ você espera? Escolha $p$ e o RTT para ver os dois regimes. Dica: no regime
+MIMD a janela fica perto de $0{,}08/p$ pacotes, e a capacidade do gargalo não pode
+limitar a vazão (com $p=2\times10^{-4}$ e RTT de 100\,ms, isso já passa de 45\,Mb/s).
+\item \inter\ Repita a pergunta 5.1 para CUBIC e ponha os três algoritmos no mesmo gráfico. O CUBIC do Linux tem uma região “amigável ao TCP” em
+que se comporta como um AIMD; fora dela, a previsão é $\hat\alpha=4/3$. Você deve ver
+\emph{dois regimes}. Encontre experimentalmente o valor de $p$ (e de RTT) onde ocorre a
+transição e compare com a fórmula da RFC~9438.
+\end{enumerate}
+
+\subsection*{Sincronização e justiça entre RTTs}
+\label{sec:sincronizacao}
+
+Este é o bloco com maior potencial de pesquisa: até onde sabemos, \textbf{a fórmula
+\eqref{eq:interp} nunca foi testada em uma pilha TCP real.} Os três primeiros itens
+(\ref{b:sync}--\ref{b:tres}) formam um experimento completo e, juntos, valem até
+1,5 ponto de bônus.
+
+\paragraph{Montagem.} Topologia da Figura~\ref{fig:dumbbell} com $n=3$ fluxos Reno e
+atrasos de acesso escolhidos para que os RTTs de propagação fiquem na razão $1:2:3$ (por
+exemplo, 20, 40 e 60\,ms). Meça os RTTs com \texttt{ping} antes de ligar os fluxos.
+Atenção: o RTT \emph{efetivo} inclui o atraso de fila, que é comum a todos os fluxos e
+comprime as razões. Use o \texttt{srtt} médio medido por fluxo, não o de propagação.
+
+\begin{enumerate}[resume*=bonus]
+\item \inter\ \label{b:sync}Implemente \texttt{sync\_estimate} em \texttt{ig\_metrics.py}, o estimador
+$\hat s$ de \eqref{eq:shat}: detecte as reduções de
+janela de cada fluxo, agrupe-as em eventos com uma janela $\Delta$ e calcule $\bar m$.
+Mostre como $\hat s$ depende de $\Delta$ (teste $\Delta$ de 0,5 a 3 RTTs) e justifique sua
+escolha.
+\item \inter\ \label{b:alpha}Estime $\hat\alpha_{\rm ef}$ a partir de \eqref{eq:rttbias}: ajuste
+$\log x_r$ contra $\log\bar T_r$; a inclinação é $-2/\hat\alpha_{\rm ef}$. Reporte também
+o $R^2$ do ajuste: um $R^2$ baixo quer dizer que a vazão não segue uma lei de potência
+do RTT, e aí $\hat\alpha_{\rm ef}$ perde o sentido.
+\item \avancado\ \label{b:tres}Meça três configurações, com pelo menos 5 repetições cada: drop-tail com
+$B=100$, drop-tail com $B=20$ e RED com $B=100$ (\texttt{-{}-red}). Ponha os três pontos
+$(\hat s,\hat\alpha_{\rm ef})$ num gráfico com a curva teórica \eqref{eq:interp} para
+$n=3$. Os pontos seguem a curva? Onde não seguem, o que pode explicar a diferença? (Veja
+“O que a teoria não cobre”, na Seção~\ref{sec:primer}.)
+\end{enumerate}
+
+\paragraph{Gráfico:} \path{bonus-alpha-vs-s.png}: os três pontos
+$(\hat s,\hat\alpha_{\rm ef})$, com barras de erro nos dois eixos, o $R^2$ de cada ajuste e
+a curva teórica para $n=3$. Este é o gráfico que mais interessa para o artigo.
+
+\paragraph{Uma armadilha: a contabilidade da janela.} Em regime, o que a janela de um
+fluxo ganha nos aumentos é, em média, o que ela perde nas reduções. Para o Reno isso dá
+\begin{equation}
+x_r\,\nu_r\;\approx\;\frac{2\kappa_r}{T_r^2},
+\label{eq:balanco}
+\end{equation}
+em que $\nu_r$ é o número de reduções de janela por segundo do fluxo $r$ e $\kappa_r$ é a
+razão entre a janela média e a janela no instante do corte ($3/4$ num dente de serra
+regular). No Linux a igualdade não é exata, mas o erro é um fator parecido para todos
+os fluxos, e é isso que importa. Se $\kappa_r$ for parecido entre os fluxos, a vazão e a
+taxa de reduções ficam amarradas: medir como $\nu_r$ varia com $x_r$ já determina como $x_r$ varia com $T_r$,
+\emph{qualquer que seja o padrão de perdas} (Apêndice~\ref{app:deriv}). Ou seja, essa
+relação sozinha não testa o modelo de sincronização. O que o modelo acrescenta é prever
+$\alpha_{\rm ef}$ a partir de $\hat s$, que é medido de outra forma, contando quantos
+fluxos cada evento atinge. É esse o teste do item~\ref{b:tres}.
+
+\begin{enumerate}[resume*=bonus]
+\item \avancado\ \textbf{A contabilidade da janela.} Para cada fluxo, meça a taxa de
+reduções $\nu_r$ (mudanças de \texttt{ssthresh} por segundo) e o fator $\kappa_r$
+(janela média dividida pela janela média nos instantes de corte), e confira
+\eqref{eq:balanco}: a razão $x_r\nu_r T_r^2/(2\kappa_r)$ deve ser parecida entre os
+fluxos, mesmo que não dê exatamente 1. Por que ela não dá 1 no Linux? (Pense no PRR, em
+como o \texttt{ssthresh} é calculado e no uso do \texttt{srtt} médio.) Calcule $\gamma$, a inclinação de $\log\nu_r$ contra $\log x_r$, e
+compare três números: $1+\gamma$, a inclinação de $\log(1/\bar T_r^2)$ contra $\log x_r$, e
+o $\hat\alpha_{\rm ef}$ do item~\ref{b:alpha}. Por que os dois primeiros quase coincidem mesmo quando o
+terceiro não bate? (Dica: o que acontece com a inclinação quando você troca os eixos de
+uma regressão com $R^2<1$? Veja o Apêndice~\ref{app:deriv}.) Conclua por que a relação
+$\alpha_{\rm ef}=1+\gamma$ não testa o modelo de sincronização, e o gráfico do item~\ref{b:tres} testa.
+\item \avancado\ Amplie o gráfico do item~\ref{b:tres}. Faça $\hat s$ variar e construa o gráfico de $\hat\alpha_{\rm ef}$
+contra $\hat s$, com a curva teórica \eqref{eq:interp} sobreposta. Maneiras de mexer na
+sincronização:
+\begin{itemize}
+\item tamanho do buffer $B$ (de $0{,}25$ a $4$ BDPs);
+\item disciplina de fila: drop-tail (padrão) $\times$ RED (\texttt{-{}-red}) $\times$
+CoDel (\texttt{-{}-qdisc codel});
+\item número de fluxos $n\in\{3,6,10\}$, com RTTs log-espaçados. Ao aumentar $n$, compare
+manter $B$ fixo com manter $B/n$ fixo: com $B$ fixo, cada fluxo fica com uma parte menor
+do buffer, e isso por si só muda $\hat s$;
+\item uma pequena perda aleatória adicional (que cria eventos individuais);
+\item tráfego de fundo com fluxos curtos (por exemplo, downloads periódicos com \texttt{curl}).
+\end{itemize}
+\item \avancado\ Repita com \texttt{-{}-qdisc fq\_codel}, que mantém uma fila por fluxo e
+os atende em rodízio. Onde seus pontos caem? Por que o modelo \eqref{eq:interp}, que
+supõe uma fila única compartilhada, não se aplica a esse caso?
+\item \avancado\ Pela fórmula \eqref{eq:interp}, com $n=10$ e $s=0{,}1$ já se tem
+$\alpha_{\rm ef}\approx1{,}47$, quase o ponto médio; com $n=30$ e $s=0{,}1$,
+$\alpha_{\rm ef}\approx1{,}23$, perto do regime sincronizado. Seus dados confirmam que o
+ponto médio se desloca para $s\approx1/n$ quando $n$ cresce?
+\item \avancado\ Volte ao item~\ref{b:appenzeller}. Para quais valores de $B$ as perdas foram
+efetivamente dessincronizadas no seu experimento? O que isso diz sobre a regra
+$\mathrm{RTT}\cdot C/\sqrt N$?
+\end{enumerate}
+
+\subsection*{Dois gargalos}
+\label{sec:doisgargalos}
+
+O equilíbrio $\alpha$-justo e a função de Lyapunov $\Dis(x^\star\|x)$ do modelo fluido
+(Apêndice~\ref{app:deriv}) valem em qualquer topologia, não só com um gargalo: o ótimo
+passa a maximizar $\sum_r U(x_r)$ sujeito a uma restrição de capacidade por enlace.
+Este bônus testa isso na rede da
+Figura~\ref{fig:parking}, com os atrasos de acesso ajustados para que os três fluxos
+tenham o mesmo RTT de propagação. Monte a topologia adaptando o \texttt{dumbbell.py}
+(classe da topologia e comandos \texttt{tc} dos dois gargalos).
+
+\begin{figure}[htbp]
+\centering
+\begin{tikzpicture}[
+  sw/.style={draw,circle,minimum size=0.9cm,font=\small,fill=cfair!15}]
+  \node[sw] (A) at (0,0) {A};
+  \node[sw] (B) at (4,0) {B};
+  \node[sw] (Cn) at (8,0) {C};
+  \draw[thick,ceff] (A) -- node[above,font=\scriptsize]{$c_1=10$ Mb/s} (B);
+  \draw[thick,ceff] (B) -- node[above,font=\scriptsize]{$c_2=5$ Mb/s} (Cn);
+  \draw[cfair,very thick,-{Stealth}] (-0.4,-0.75) -- node[below,font=\scriptsize]{fluxo 1} (8.4,-0.75);
+  \draw[ctraj,very thick,-{Stealth}] (-0.4,0.75) -- node[above,font=\scriptsize]{fluxo 2} (4.2,0.75);
+  \draw[ctraj,very thick,-{Stealth}] (3.8,1.35) -- node[above,font=\scriptsize]{fluxo 3} (8.4,1.35);
+\end{tikzpicture}
+\caption{Rede “parking lot” com dois gargalos e três fluxos.}
+\label{fig:parking}
+\end{figure}
+
+\begin{enumerate}[resume*=bonus]
+\item \inter\ Calcule a alocação ótima para $\alpha=1$ (justiça proporcional),
+$\alpha=2$ e $\alpha\to\infty$ (max-min). Para conferir: com $\alpha=2$,
+$x^\star\approx(2{,}43;\ 7{,}57;\ 2{,}57)$\,Mb/s.
+\item \avancado\ Meça a alocação com Reno. Qual $\alpha$ descreve melhor o resultado?
+Repita com RTTs desiguais (sem compensar o caminho mais longo do fluxo 1).
+\item \avancado\ Calcule $\Dis(x^\star\|x(t))$ ao longo do experimento. Ela é
+monótona? Lembre que a monotonicidade só está garantida no modelo fluido sem
+atraso.
+\end{enumerate}
+
+% =====================================================================
+\section{Parte 7: Trilha de pesquisa \texorpdfstring{\pesquisa}{}}
+\pontos{bônus, somado com a Parte 6}
+\label{sec:pesquisa}
+
+Os itens abaixo são problemas em aberto. Não há resposta conhecida; um resultado
+negativo bem feito (“a previsão falha, e eis por quê”) também é um resultado. Escolha
+\emph{no máximo dois} e converse com o professor antes de investir muito tempo.
+
+\begin{enumerate}[label=R\arabic*.]
+\item \textbf{Validação da interpolação.} Transformar o gráfico do item~\ref{b:tres} num
+resultado de artigo: vários $n$, repetições suficientes, análise de sensibilidade de
+$\Delta$, e uma explicação para os desvios. Primeiro passo: 10 repetições de cada ponto
+desse gráfico.
+\item \textbf{A contração transversal do CUBIC.} O CUBIC tem estado bidimensional
+$(w,W_{\max})$, e a geometria desse sistema bidimensional é um problema em aberto. Meça
+$\mathcal U_{m+1}/\mathcal U_m$ do CUBIC em função de $\beta$ e $C$ (parâmetros
+\texttt{beta} e \texttt{bic\_scale} do módulo \texttt{tcp\_cubic}) e proponha uma fórmula. Compare com uma simulação do mapa de ciclos
+usando \texttt{simula\_cubic.py} como base.
+\item \textbf{Atraso de realimentação.} Aumente o RTT (até 400\,ms) mantendo o BDP fixo
+e verifique se $\Dis(x^\star\|x(t))$ deixa de ser monótona. Existe um RTT a partir do
+qual a monotonicidade quebra? A estabilidade com atraso é justamente o que a
+teoria da Seção~\ref{sec:primer} não cobre.
+\item \textbf{Disciplinas de fila com $\gamma>1$.} Em \eqref{eq:interp}, $\gamma\le1$.
+Existem disciplinas de fila que realizam $\gamma>1$, isto é, $\alpha>k+l+1$? Comece
+medindo $\gamma$ com RED e CoDel, com vários $n$ e repetições. Depois proponha uma (por exemplo, descarte com
+probabilidade que cresce mais que linearmente na taxa do fluxo), implemente-a num
+simulador simples em Python ou como qdisc, e meça $\alpha_{\rm ef}$.
+\item \textbf{Dente de serra com dois gargalos.} Na rede da Figura~\ref{fig:parking},
+procure empiricamente uma quantidade transversal que seja monótona de ciclo a ciclo
+(com um gargalo, $\mathcal U$ tem esse papel). Candidata natural: $\mathcal U$ com
+$\mu=x^\star$.
+\item \textbf{Invariância de escala.} Na teoria, multiplicar a capacidade por 10, com o
+buffer medido em BDPs, não muda as frações $x_r/\sum_s x_s$, a razão por ciclo nem
+$\hat s$. Repita a Parte 4 e o bloco de sincronização com $C=10$ e $C=100$\,Mb/s. O que muda no Linux (cwnd
+inteira, janela inicial, TSO, CPU da VM) e a partir de que escala? É um teste barato que
+separa o que é do protocolo do que é da implementação.
+\end{enumerate}
+
+% =====================================================================
+\section{Reprodutibilidade e formato dos dados}
+\label{sec:repro}
+
+Um dos objetivos do trabalho é construir um sistema fácil de rodar. Como os dados podem
+entrar em um artigo, as regras abaixo são \textbf{obrigatórias} a partir da Parte 4.
+
+\begin{itemize}
+\item \textbf{Um comando por parte}: \texttt{sudo ./run\_p2.sh}, \texttt{sudo ./run\_p4.sh},
+\texttt{sudo ./run\_p5.sh} e \texttt{./plot\_all.sh} para regenerar todos os
+gráficos a partir dos dados brutos, sem rodar o Mininet de novo.
+\item \textbf{Dados brutos em CSV}, no formato gravado pelo \texttt{cwnd\_monitor.py}, com colunas
+\texttt{t\_s, flow\_id, cc, cwnd\_pkts, ssthresh\_pkts, srtt\_ms, bytes\_acked} e um
+\texttt{metadata.json} ao lado (o \texttt{dumbbell.py} já grava um) com: versão do kernel (\texttt{uname -r}), versão do
+Mininet e do iperf3, topologia, $C$, $B$, atrasos, qdisc, algoritmo por fluxo, número da
+repetição (o netem não aceita semente), data e hora, e o \emph{commit} do repositório.
+\item \textbf{Repetições}: pelo menos 3 por configuração (5, se der tempo), com intervalos
+de confiança de 95\%. Diga explicitamente quais rodadas foram descartadas e por quê.
+\item \textbf{Sanidade}: em cada rodada, verifique que a CPU da VM não saturou
+(\texttt{top} ou \texttt{mpstat}) e que a vazão total bate com $C$. O Mininet só é fiel
+enquanto a CPU não é o gargalo.
+\item \textbf{Repositório GitHub} desde a primeira semana, com \texttt{README.md}
+explicando como reproduzir cada gráfico, e uma licença para o código (por exemplo, MIT)
+e para os dados (por exemplo, CC-BY 4.0).
+\end{itemize}
+
+% =====================================================================
+\section{O que entregar}
+\label{sec:entrega}
+
+\begin{itemize}
+\item \textbf{Código}: todos os arquivos fornecidos e os seus, num único ZIP, e o link do
+repositório GitHub.
+\item \textbf{Relatório em PDF} com instruções para reproduzir os resultados e as
+respostas às perguntas, identificadas pelo número (2.1, 3.2, 5.1, B7, \dots).
+\item \textbf{Gráficos} com os nomes pedidos em cada parte, também enviados como
+arquivos separados no Google Classroom.
+\item \textbf{Slides} para a apresentação preliminar (\dataPreliminar).
+\item \textbf{Declaração de contribuição}: um parágrafo dizendo o que cada membro do
+grupo fez.
+\end{itemize}
+Submeta via Google Classroom: PDF e imagens como arquivos isolados, e o código num ZIP
+à parte.
+
+\subsection*{Pontuação}
+\begin{center}
+\begin{tabular}{@{}llr@{}}
+\toprule
+Parte & Nível & Pontos\\
+\midrule
+1. Configuração & \basico & pré-requisito\\
+2. Bufferbloat e dente de serra & \basico & 2,5\\
+3. Aquecimento & \basico\ \inter & 1,0\\
+4. Decomposição pitagórica & \inter & 4,0\\
+5. Leis de escala & \inter & 2,5\\
+\midrule
+6. Bônus e extras & \avancado & bônus\\
+7. Trilha de pesquisa & \pesquisa & bônus\\
+\bottomrule
+\end{tabular}
+\end{center}
+Os bônus das Partes 6 e 7, somados, valem até 2,0 pontos, e a nota final é limitada a 10. Em cada parte, metade da nota vem dos experimentos e
+gráficos, e metade das respostas e da interpretação. Uma resposta que explica
+honestamente por que um experimento não deu certo vale mais do que um gráfico bonito
+sem explicação.
+
+% =====================================================================
+\section{Coautoria e uso dos resultados}
+\label{sec:coautoria}
+
+Os experimentos deste trabalho podem ajudar a validar --- ou a refutar --- as previsões
+da Seção~\ref{sec:primer}, e resultados sólidos podem ser publicados em um artigo
+científico. Alunos cujas contribuições forem incorporadas a um artigo poderão ser
+\textbf{convidados como coautores}. Os critérios são os usuais em publicações
+científicas:
+\begin{enumerate}
+\item \textbf{contribuição substancial e original} que sustenta uma afirmação do artigo
+--- por exemplo, um experimento, uma figura, um código de análise ou uma explicação para
+um desvio da teoria;
+\item \textbf{reprodutibilidade}: os professores conseguem regenerar o resultado a
+partir do repositório, seguindo o \texttt{README};
+\item \textbf{participação na redação e revisão} da parte correspondente e aprovação da
+versão final do texto;
+\item \textbf{disponibilidade para continuar depois do fim da disciplina}: escrever um
+artigo costuma levar meses e exige novas rodadas de experimentos.
+\end{enumerate}
+Contribuições menores serão reconhecidas nos agradecimentos. A coautoria não depende da
+nota, e a nota não depende da coautoria. Os dados de um grupo só serão usados no artigo
+com o consentimento de seus autores e com crédito.
+
+\paragraph{Integridade.} Dados fabricados ou “ajustados” para bater com a teoria
+resultam em nota zero no trabalho. O uso de ferramentas de IA é permitido para código e
+texto, desde que declarado no relatório; o grupo é responsável por tudo o que entrega e
+deve ser capaz de explicar cada linha na apresentação.
+
+% =====================================================================
+\appendix
+\section{A teoria em detalhe}
+\label{app:teoria}
+
+Este apêndice apresenta a teoria da Seção~\ref{sec:primer} com mais generalidade (RTTs
+diferentes, pesos $\mu$, família binomial). As derivações estão no Apêndice~\ref{app:deriv}.
+
+\subsection{A família binomial e o expoente de justiça}
+
+Um protocolo da família binomial (Bansal--Balakrishnan) mantém uma janela $w$ e faz
+\begin{equation}
+\text{a cada RTT sem perda:}\quad w\leftarrow w+a\,w^{-k},
+\qquad
+\text{a cada perda:}\quad w\leftarrow w-b\,w^{l}.
+\label{eq:binomialA}
+\end{equation}
+O TCP Reno é $(k,l)=(0,1)$ com $b=1/2$: soma 1 pacote por RTT e divide a janela por
+2 na perda. Escrevemos $\beta$ para a \textbf{fração retida} da janela na perda
+($w\leftarrow\beta w$): $\beta=0{,}5$ no Reno e $\beta=0{,}7$ no CUBIC do Linux.
+
+Se as perdas são independentes por pacote, com probabilidade $p$, o equilíbrio do
+modelo fluido satisfaz $p\propto w^{-\alpha}$, ou seja,
+\begin{equation}
+\bar w\;\propto\;p^{-1/\alpha},\qquad \alpha=k+l+1 .
+\label{eq:alphaA}
+\end{equation}
+O número $\alpha$ é o \textbf{expoente de justiça}: o equilíbrio maximiza
+$\sum_r U(x_r)$ com $U'(x)\propto x^{-\alpha}$ (justiça $\alpha$ de Mo--Walrand).
+$\alpha=1$ é justiça proporcional, $\alpha=2$ é “atraso potencial mínimo”, e
+$\alpha\to\infty$ é max-min.
+
+\begin{center}
+\begin{tabular}{@{}lcccl@{}}
+\toprule
+Protocolo & $k$ & $l$ & $\alpha$ & previsão $\bar w\propto p^{-1/\alpha}$\\
+\midrule
+Reno (AIMD) & $0$ & $1$ & $2$ & $p^{-1/2}$ (lei de Mathis)\\
+Scalable TCP (MIMD)$^{*}$ & $-1$ & $1$ & $1$ & $p^{-1}$\\
+AIAD & $0$ & $0$ & $1$ & $p^{-1}$\\
+CUBIC (correspondência de escala) & $-2/3$ & $1$ & $4/3$ & $p^{-3/4}$\\
+\bottomrule
+\end{tabular}
+
+\smallskip
+{\footnotesize $^{*}$No Linux, só com janela acima de 100 pacotes; abaixo disso o
+incremento é de 1 pacote por RTT (Parte 5).}
+\end{center}
+
+\paragraph{RTTs diferentes.} Com $a_r\propto1/T_r^2$ (o RTT entra duas vezes: na
+taxa de incremento e na conversão janela$\to$taxa), a taxa de equilíbrio do fluxo $r$ é
+\begin{equation}
+x_r\;\propto\;T_r^{-2/\alpha_{\rm ef}} .
+\label{eq:rttbiasA}
+\end{equation}
+Para o Reno com perdas \emph{dessincronizadas}, $\alpha_{\rm ef}=2$ e $x_r\propto1/T_r$
+(viés linear em RTT). Com perdas \emph{sincronizadas}, $\alpha_{\rm ef}=1$ e
+$x_r\propto1/T_r^2$ (viés quadrático). Veja a Seção~\ref{app:sync}.
+
+\subsection{AIMD são dois passos de tamanho fixo, em duas geometrias}
+
+Na métrica euclidiana, o aumento aditivo é um passo de tamanho fixo $a$. Na métrica
+invariante por escala $ds=dx/x$ (a única métrica separável invariante por dilatações,
+que coincide com a métrica de Fisher de uma família de escala), a redução
+multiplicativa $x\mapsto\beta x$ percorre sempre a mesma distância
+\[
+d(\beta x,x)=\int_{\beta x}^x\frac{du}{u}=|\log\beta|,
+\]
+\emph{independentemente de $x$}. A assimetria entre aumento e redução de Chiu--Jain é
+a assimetria entre translações e dilatações.
+
+\subsection{Justiça e eficiência como componentes ortogonais}
+
+Considere $n$ fluxos com taxas $x=(x_1,\dots,x_n)$ dividindo um gargalo de capacidade
+$c$, e seja $\mu$ a direção que o protocolo considera justa ($\mu=\ones$ quando todos
+têm o mesmo RTT). O ótimo é $x^\star=c\,\mu/\sum_r\mu_r$. Defina $z_r=x_r/\mu_r$,
+$\AM$ e $\GM$ as médias aritmética e geométrica, e a \textbf{divergência de
+Itakura--Saito}
+\begin{equation}
+\Dis(x\|y)=\sum_{r=1}^n\Big[\frac{x_r}{y_r}-\log\frac{x_r}{y_r}-1\Big]\;\ge0 .
+\end{equation}
+
+\begin{caixa}[title=Teorema (decomposição pitagórica)]{cfair}
+Com a \emph{utilização projetada} $\hat\rho=\AM(z)\sum_r\mu_r/c$,
+\begin{equation}
+\Dis(x\|x^\star)\;=\;
+\underbrace{n\log\frac{\AM(z)}{\GM(z)}}_{\textstyle\mathcal U(x)\ \text{(injustiça)}}
+\;+\;
+\underbrace{n\big(\hat\rho-\log\hat\rho-1\big)}_{\textstyle\mathcal I(x)\ \text{(ineficiência)}} .
+\label{eq:pitagorasA}
+\end{equation}
+Os dois termos são $\ge0$ e se anulam juntos só em $x=x^\star$. $\mathcal U$ é
+invariante por escala: não muda se todos os fluxos forem multiplicados pelo mesmo
+fator.
+\end{caixa}
+
+Com $\mu=\ones$ a interpretação é imediata (Figura~\ref{fig:chiujain}): o ponto
+$\hat x=\AM(x)\,\ones$ é a projeção de $x$ na reta justa \emph{mantendo a vazão total};
+$\mathcal U$ mede o quanto $x$ está fora da reta justa, e $\mathcal I$ o quanto $\hat x$
+está longe de $x^\star$ ao longo dela.
+
+
+\paragraph{O que acontece em cada ciclo.} Para o Reno com perdas sincronizadas, amostrando
+o estado logo antes de cada perda:
+\begin{enumerate}[label=(\roman*)]
+\item a MD $x\mapsto\beta x$ deixa $\mathcal U$ \emph{exatamente} igual e leva
+$\hat\rho\mapsto\beta\hat\rho$;
+\item a AI reduz $\mathcal U$ estritamente;
+\item de um ciclo para o outro, $\mathcal U_{m+1}/\mathcal U_m\to\beta^2$
+($=1/4$ no Reno);
+\item no regime permanente, $\mathcal U\to0$ e $\mathcal I$ oscila entre $0$ e
+$n(\beta-\log\beta-1)$ --- é a sonda de banda, que \emph{deve} persistir.
+\end{enumerate}
+
+\subsection{Sincronização de perdas}
+\label{app:sync}
+
+Modele cada evento de congestionamento assim: com probabilidade $s$ ele é
+\emph{global} (todos os $n$ fluxos reduzem a janela); com probabilidade $1-s$ ele é
+\emph{individual} (um único fluxo reduz, escolhido com probabilidade proporcional à sua
+taxa). Uma conta de campo médio (Apêndice~\ref{app:deriv}) mostra que o expoente de
+justiça efetivo do Reno é
+\begin{equation}
+\alpha_{\rm ef}(s)\;=\;1+\gamma(s),\qquad
+\gamma(s)=\frac{1-s}{s\,n+1-s},
+\label{eq:interpA}
+\end{equation}
+que vai de $\alpha=2$ ($s=0$, dessincronizado) a $\alpha=1$ ($s=1$, sincronizado). O
+ponto médio ($\gamma=1/2$) está em $s=1/(n+1)\approx1/n$, e não em $s=1/2$: com muitos
+fluxos, \emph{uma pequena fração de eventos globais já domina}.
+
+\paragraph{Como estimar $s$ a partir de um traço.} Agrupe as reduções de janela de todos
+os fluxos em \emph{eventos} (reduções que acontecem dentro de uma janela de tempo
+$\Delta$, da ordem de um RTT). Se $\bar m$ é o número médio de fluxos atingidos por
+evento, o modelo dá $\bar m=s\,n+(1-s)$, logo
+\begin{equation}
+\hat s=\frac{\bar m-1}{n-1}.
+\label{eq:shatA}
+\end{equation}
+
+\section{Derivações}
+\label{app:deriv}
+
+As contas abaixo são no modelo fluido, sem atraso de realimentação.
+
+\paragraph{Expoente $\alpha=k+l+1$.} Em um RTT a janela cresce $a\,w^{-k}$. Com perda
+independente por pacote, há em média $p\,w$ perdas por RTT, e cada uma retira $b\,w^{l}$.
+No equilíbrio, $a\,w^{-k}=p\,w\cdot b\,w^{l}$, ou seja, $p=(a/b)\,w^{-(k+l+1)}$. Com vários
+fluxos sujeitos ao mesmo sinal de perda $q$ (o “preço” do gargalo),
+$x_r=(a_r/(b\,q))^{1/\alpha}$. Essa é exatamente a condição de otimalidade de
+$\max\sum_r w_r\,x_r^{1-\alpha}/(1-\alpha)$ sujeito a $\sum_r x_r\le c$, com $w_r=a_r/b$:
+o equilíbrio é $\alpha$-justo. Com $a_r\propto1/T_r^2$, vem $x_r\propto T_r^{-2/\alpha}$.
+
+\paragraph{Decomposição pitagórica.} Com $z^\star_r=x^\star_r/\mu_r=c/\sum_s\mu_s$ (igual
+para todo $r$), $\hat\rho=\AM(z)/z^\star$. Então
+\[
+\Dis(x\|x^\star)=\sum_r\Big[\frac{z_r}{z^\star}-\log\frac{z_r}{z^\star}-1\Big]
+=n\hat\rho-n\log\GM(z)+n\log z^\star-n .
+\]
+Somando e subtraindo $n\log\AM(z)$ e usando $\log\hat\rho=\log\AM(z)-\log z^\star$,
+obtém-se $n\log\frac{\AM(z)}{\GM(z)}+n(\hat\rho-\log\hat\rho-1)$. Os dois termos são
+$\ge0$: o primeiro pela desigualdade das médias, o segundo porque
+$u-\log u-1\ge0$.
+
+\paragraph{MD não muda $\mathcal U$; AI diminui.} $\mathcal U$ depende só das razões
+$z_r/z_s$, que a MD $x\mapsto\beta x$ preserva. Com $\mu=\ones$, somar $t$ a todos os
+fluxos dá $\frac{d}{dt}\mathcal U(x+t\ones)=n\big[1/\AM(x)-\overline{1/x}\big]\le0$,
+pela desigualdade entre as médias aritmética e harmônica, com igualdade só em
+$x\parallel\ones$.
+
+\paragraph{Contração por $\beta^2$.} Com perdas sincronizadas e $\mu=\ones$, entre dois
+estados imediatamente anteriores a perdas a MD leva a soma de $c$ para $\beta c$ e o AI
+devolve $(1-\beta)c/n=(1-\beta)x^\star_r$ a cada fluxo. O mapa por ciclo é
+$x'=\beta x+(1-\beta)x^\star$: o desvio $x-x^\star$ encolhe por $\beta$ a cada ciclo. Perto
+da reta justa, $\mathcal U$ é quadrático no desvio transversal (Exercício 3.2), logo
+$\mathcal U_{m+1}/\mathcal U_m\to\beta^2$.
+
+\paragraph{Contabilidade da janela.} No Reno, entre reduções a janela cresce
+$1$ pacote por RTT, isto é, $dw/dt=1/T_r$; cada redução retira metade da janela. Em
+regime a janela não cresce nem diminui em média, então $1/T_r=\nu_r\,\overline{w}_{\rm
+corte}/2$, em que $\overline{w}_{\rm corte}$ é a janela média nos cortes. Com
+$x_r=\overline{w}/T_r$ e $\kappa_r=\overline{w}/\overline{w}_{\rm corte}$, vem
+$x_r\nu_r=2\kappa_r/T_r^2$, que é \eqref{eq:balanco}. Num dente de serra regular, de $W/2$
+a $W$, $\kappa_r=3/4$. Se $\kappa_r$ é igual para todos os fluxos, então
+$\log(1/T_r^2)=\log x_r+\log\nu_r+\text{const}$, e a regressão de mínimos quadrados dá
+exatamente
+\[
+\text{inclinação}\big(\log(1/T^2)\sim\log x\big)=1+\text{inclinação}\big(\log\nu\sim\log x\big)=1+\gamma ,
+\]
+para \emph{qualquer} padrão de perdas. Já o ajuste na outra direção, de $\log x$ contra
+$\log(1/T^2)$, tem inclinação $R^2/(1+\gamma)$, e daí $\hat\alpha_{\rm ef}\approx(1+\gamma)/R^2$:
+quando a vazão não segue bem uma lei de potência ($R^2$ baixo), $\hat\alpha_{\rm ef}$
+explode, mesmo com a contabilidade valendo.
+
+\paragraph{Lyapunov.} No modelo fluido do AIMD ($k=0$, $l=1$), com um preço comum
+$q=q(X)$ não decrescente na vazão total $X=\sum_r x_r$, $\dot x_r=a_r-b\,q\,x_r^{2}$. No
+equilíbrio, $a_r=b\,q^\star x_r^{\star2}$. Com
+$V(x)=\Dis(x^\star\|x)=\sum_r[x^\star_r/x_r-\log(x^\star_r/x_r)-1]$,
+\[
+\dot V=\sum_r\frac{x_r-x^\star_r}{x_r^2}\,\dot x_r
+=-b\,q^\star\sum_r\frac{(x_r-x^\star_r)^2(x_r+x^\star_r)}{x_r^2}
+\;+\;b\,(q^\star-q)(X-X^\star)\;\le\;0 ,
+\]
+pois o segundo termo é $\le0$ quando $q$ cresce com $X$. Em uma rede, o preço do fluxo
+é a soma dos preços dos enlaces do caminho, e o segundo termo vira uma soma por enlace
+com o mesmo sinal.
+
+\paragraph{Sincronização parcial.} Se os eventos de congestionamento ocorrem com taxa
+$\Lambda$ e cada um é global com probabilidade $s$ ou atinge um único fluxo, escolhido
+com probabilidade $x_r/X$ ($X=\sum_s x_s$), o fluxo $r$ reduz a janela com intensidade
+$\nu_r=\Lambda\,[\,s+(1-s)\,x_r/X\,]$. O equilíbrio exige $a_r x_r^{-k}=b\,\nu_r\,x_r^{l}$.
+Tratando $X$ como fixo (campo médio), o expoente local é
+\[
+\frac{\partial\log a_r}{\partial\log x_r}=k+l+\frac{\partial\log\nu_r}{\partial\log x_r}
+=k+l+\frac{(1-s)\,x_r/X}{s+(1-s)\,x_r/X},
+\]
+que no ponto simétrico $x_r=X/n$ vale $k+l+\gamma(s)$, com
+$\gamma(s)=(1-s)/(sn+1-s)$. Para o Reno, $k+l=1$, o que dá \eqref{eq:interp}; e
+$\gamma=1/2$ exatamente em $s=1/(n+1)$.
+
+\section{Dicas técnicas}
+\label{app:dicas}
+
+\paragraph{Amostrar a janela.} O \texttt{cwnd\_monitor.py} roda \texttt{ss -tin} no host
+emissor a cada 10\,ms (os hosts do Mininet compartilham o kernel, mas cada um tem seu
+\emph{namespace} de rede). Uma alternativa mais precisa é o tracepoint
+\texttt{tcp:tcp\_probe} (\path{/sys/kernel/debug/tracing/events/tcp/tcp_probe}), que
+registra cwnd e srtt a cada ACK.
+
+\paragraph{Atrasos.} O \texttt{delay} de um \texttt{TCLink} é aplicado em cada sentido;
+um enlace com \texttt{delay='10ms'} contribui 20\,ms para o RTT. Use \texttt{params1} e
+\texttt{params2} se quiser parâmetros diferentes em cada ponta, por exemplo para colocar
+o buffer limitado (\texttt{max\_queue\_size}) só na saída do gargalo.
+
+\paragraph{TCP Small Queues.} Emissor e “roteador” estão no mesmo kernel. Em kernels
+recentes, um pacote parado na fila do gargalo pode continuar contado no socket do
+emissor, e o TCP Small Queues então limita cada fluxo a poucos pacotes nessa fila: o
+buffer nunca enche e não há perdas. O netem resolve isso, porque solta o pacote do
+socket ao enfileirá-lo. Por isso o \texttt{dumbbell.py} coloca o atraso na saída do
+emissor; se você montar sua própria topologia, garanta um netem com atraso na saída de
+cada emissor (o \texttt{TCLink} com \texttt{delay} já faz isso).
+
+\paragraph{Offloads.} TSO/GSO/GRO agrupam pacotes e distorcem cwnd e fila. Desligue-os
+nas interfaces dos hosts e do gargalo:
+\texttt{ethtool -K h1-eth0 tso off gso off gro off}.
+
+\paragraph{Filas.} Inspecione a qdisc real com \texttt{tc -s qdisc show dev s1-eth1}.
+O \texttt{dumbbell.py -{}-red} instala RED com limiares \texttt{-{}-red-min} e
+\texttt{-{}-red-max} (frações do buffer) e probabilidade máxima \texttt{-{}-red-prob};
+\texttt{-{}-qdisc codel} e \texttt{-{}-qdisc fq\_codel} usam os valores padrão do Linux
+(alvo de 5\,ms). Com \texttt{-{}-ecn}, a fila marca em vez de descartar, e o ECN do TCP é
+ligado em todos os hosts; as marcas aparecem como \texttt{marked} (RED) ou
+\texttt{ecn\_mark} (CoDel) no \texttt{tc -s}. Os comandos \texttt{tc} usados ficam no
+\texttt{metadata.json}.
+
+\paragraph{Detectar perdas.} Uma mudança de \texttt{ssthresh} marca uma redução de
+janela (a cwnd em si cai gradualmente, por causa do PRR). Descarte reduções
+causadas por \emph{timeout} (cwnd vai a 1 ou 2) e conte-as à parte.
+
+\paragraph{CPU.} Se a vazão medida ficar abaixo de $C$ sem perdas, desconfie da CPU.
+Reduza $C$, reduza $n$ ou aumente os recursos da VM.
+
+\section{Código fornecido (\texttt{ig\_starter})}
+\label{app:codigo}
+
+\begin{center}
+\begin{tabularx}{\textwidth}{@{}lX@{}}
+\toprule
+Arquivo & O que faz\\
+\midrule
+\texttt{dumbbell.py} & Topologia haltere com $n$ emissores, RTTs por fluxo, gargalo com
+$C$ e $B$, fila drop-tail, RED, CoDel ou fq\_codel, ECN e perda aleatória opcionais; inicia os fluxos escalonados, os monitores de
+cwnd e grava CSVs e \texttt{metadata.json}. \texttt{sudo python3 dumbbell.py -h} lista as
+opções.\\
+\texttt{cwnd\_monitor.py} & Amostra \texttt{ss -tin} no host emissor e grava
+\texttt{t\_s, flow\_id, cc, cwnd\_pkts, ssthresh\_pkts, srtt\_ms, bytes\_acked}.\\
+\texttt{ig\_metrics.py} & Injustiça $\mathcal U$, ineficiência $\mathcal I$, $\Dis$,
+leitura dos CSVs. Contém dois \texttt{TODO} que são parte do trabalho:
+\texttt{detect\_backoffs} (Parte 4) e \texttt{sync\_estimate} (bônus de sincronização).\\
+\texttt{plot\_cwnd.py} & Gráfico de cwnd por fluxo, mais fila e RTT quando houver (Parte 2 e
+pergunta 4.1).\\
+\texttt{run\_p4.sh} & Exemplo de varredura da Parte 4 com repetições.\\
+\texttt{simula\_aimd.py} & Verificação numérica da Seção~\ref{sec:primer}: identidade
+pitagórica, contração por $\beta^2$, expoentes binomiais e interpolação \eqref{eq:interp}.\\
+\texttt{simula\_cubic.py} & Expoente $4/3$ do CUBIC sob perda periódica.\\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Exemplo (Parte 4, $n=2$, Reno, $B=100$, RTT de 40\,ms, fluxos escalonados de 15\,s):
+\begin{lstlisting}[style=sh]
+sudo python3 dumbbell.py --n 2 --cc reno --rtt-ms 40 --bw 10 --buffer 100 \
+     --stagger 15 --duration 150 --out dados/p4/reno-n2-B100/rep1
+python3 plot_cwnd.py dados/p4/reno-n2-B100/rep1 -o p4-cwnd-reno-n2-B100.png
+\end{lstlisting}
+Cuidado numérico: quando $\mathcal U<10^{-8}$, o cálculo de $\log\AM-\overline{\log z}$
+perde precisão por cancelamento; não interprete razões de ciclo nesse nível.
+
+\end{document}

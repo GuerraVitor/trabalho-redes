@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+.pytest_cache/
+*:Zone.Identifier
+# LaTeX
+relatorio/*.aux
+relatorio/*.log
+relatorio/*.out
+relatorio/*.toc
+relatorio/*.synctex.gz
+slides/*.aux
+slides/*.log
+slides/*.nav
+slides/*.snm
+slides/*.toc
+slides/*.out
