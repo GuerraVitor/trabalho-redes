@@ -1,0 +1,33 @@
+
+===== q = 100 pacotes (3 repetições) =====
+ rep  RTT méd  desvio RTT prev fila méd fila máx  vazão   pico   vale   v/p T dente  red  TO  load
+rep1    597.2   120.4    630.0     76.2      100  1.427   96.2   48.0  0.50    29.2    8   0  0.17
+rep2    598.3   120.1    631.6     76.5      100  1.427   96.5   48.0  0.50    29.5    8   0  0.22
+rep3    597.8   120.6    630.4     76.3      100  1.427   96.5   48.0  0.50    29.4    8   0  0.33
+média ± IC95%:
+  RTT do ping           597.8 ± 1.3 ms (desvio 120.4 ± 0.6 ms)
+  RTT previsto pela fila 630.7 ± 2.1 ms = 20 + fila (pacotes) × 8.0 ms/pacote
+  RTT previsto (bytes)  593.6 ± 2.2 ms = 20 + fila (bytes) × 8 / C
+  vazão útil            1.427 ± 0.000 Mb/s (C = 1.5; esperada 1.427 = (C − pings) × 1448/1514)
+  fila cheia            1420 ± 18 B/pacote -> 6.7 ± 1.3 pings entre os 100 pacotes
+  pico da cwnd          96.4 ± 0.5 pacotes (BDP + q = 2.5 + 100 = 102.5; descontando os pings: 95.8)
+  vale/pico             0.498 ± 0.002 (beta = 0,5)
+  período do dente      29.4 ± 0.3 s
+  conferências: 
+   ! rep1: relógio recuou 1x (pior -0.470 s); alguns RTTs do ping ficam subestimados perto do salto
+
+===== q = 20 pacotes (3 repetições) =====
+ rep  RTT méd  desvio RTT prev fila méd fila máx  vazão   pico   vale   v/p T dente  red  TO  load
+rep1    131.0    27.3    134.7     14.3       20  1.427   22.2   11.0  0.50     1.7  116   0  0.12
+rep2    131.1    27.5    134.7     14.3       20  1.427   22.3   11.0  0.49     1.7  116   0  0.25
+rep3    131.3    27.1    134.7     14.3       20  1.427   22.2   11.0  0.50     1.7  117   0  0.37
+média ± IC95%:
+  RTT do ping           131.1 ± 0.4 ms (desvio 27.3 ± 0.5 ms)
+  RTT previsto pela fila 134.7 ± 0.0 ms = 20 + fila (pacotes) × 8.0 ms/pacote
+  RTT previsto (bytes)  127.6 ± 0.1 ms = 20 + fila (bytes) × 8 / C
+  vazão útil            1.427 ± 0.000 Mb/s (C = 1.5; esperada 1.427 = (C − pings) × 1448/1514)
+  fila cheia            1394 ± 3 B/pacote -> 1.7 ± 0.0 pings entre os 20 pacotes
+  pico da cwnd          22.3 ± 0.2 pacotes (BDP + q = 2.5 + 20 = 22.5; descontando os pings: 20.8)
+  vale/pico             0.494 ± 0.005 (beta = 0,5)
+  período do dente      1.7 ± 0.0 s
+  conferências: OK

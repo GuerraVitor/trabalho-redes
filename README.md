@@ -15,7 +15,7 @@ registrado aqui, para servir de base ao relatório final (ver
 | Parte | Pontos | Código | Experimentos | Análise / respostas |
 |---|---|---|---|---|
 | 1. Configuração | pré-requisito | ✅ | ✅ ambiente validado | ✅ |
-| 2. Bufferbloat | 2,5 | ✅ `run_p2.sh`, `analise/analise_p2.py` | ⏳ a rodar | ⏳ 2.1 rascunhada |
+| 2. Bufferbloat | 2,5 | ✅ `run_p2.sh`, `analise/analise_p2.py` | ✅ 3 rep. × q ∈ {20, 100} | ✅ 2.1–2.4 rascunhadas |
 | 3. Aquecimento | 1,0 | ✅ métricas testadas | — | ⏳ |
 | 4. Decomposição pitagórica | 4,0 | 🟡 `detect_backoffs` pronta | ⏳ | ⏳ |
 | 5. Leis de escala | 2,5 | ⏳ | ⏳ | ⏳ |
@@ -68,6 +68,11 @@ Validação do ambiente (25/11/2026), com h1 –s1– h2, gargalo de 10 Mb/s e 1
 Cuidados específicos do WSL2:
 * módulos e sysctls não persistem após `wsl --shutdown`: todo `run_*.sh` chama
   `scripts/setup_kernel.sh` antes de começar;
+* **o relógio de parede pode recuar** (sincronização do WSL2 com o Windows). Aconteceu
+  uma vez nas 6 rodadas da Parte 2 (q100/rep1, −0,47 s em t ≈ 15,6 s): os timestamps
+  do `cwnd_monitor.py`, da fila e do ping regridem juntos, e 5 pings enviados antes do
+  salto e recebidos depois aparecem com RTT de ~85 ms em vez de ~565 ms. As análises
+  detectam e avisam esses saltos;
 * só existe cgroups v2, por isso `Host` no lugar de `CPULimitedHost`;
 * `mn --test iperf` trava porque o Mininet usa `telnet` (ausente) para esperar o servidor;
   nossos scripts não usam esse teste.
@@ -122,6 +127,11 @@ Pico = máximo da cwnd 1 s antes de cada redução; vale = mínimo até a reduç
 pela t de Student entre repetições. Confere automaticamente as faixas da caixa "Erros
 comuns" do enunciado: 20 ≤ RTT ≤ 20 + 8q ms, fila máxima ≈ q, vazão ≤ C.
 
+**Atraso de fila em bytes, não em pacotes.** O `pfifo` limita a fila em *pacotes*, mas a
+fila também guarda os pings (98 B no fio), então o atraso de fila correto é
+ocupação em bytes × 8 / C. Com isso o RTT previsto cai de 630,7 para 593,6 ms (q = 100) e
+fica a ~4 ms do medido (ver 2.2).
+
 **Bônus B1 (`bufferbloat/`).** `delay=5ms` em cada enlace: o caminho h1–s0–h2 tem dois
 enlaces e o atraso do TCLink vale em cada sentido, então RTT = 4 × 5 = 20 ms. O buffer de
 q pacotes fica em `s0-eth2` (s0 → h2). A medição do tempo de download da página do roteiro
@@ -149,6 +159,13 @@ de 2012 (conteúdo de terceiros), usada só pelo `webserver.py`, que esta versã
   com dados sintéticos: pico 102 (BDP + q = 102,5), vale/pico 0,50, período 31,6 s.
 * Pacote original do bufferbloat incluído (checksums conferidos contra o zip) e TODOs do
   `bufferbloat.py` completados (bônus B1).
+* **Parte 2 rodada**: 3 repetições × q ∈ {20, 100}, 200 s cada. Todas passaram nas
+  conferências; repetições muito consistentes (IC do RTT médio de ±1,3 ms em ~598 ms).
+  Três desvios da previsão simples investigados e explicados (ver
+  [Notas da Parte 2](#parte-2)): pico da cwnd abaixo de BDP + q (pings ocupando a
+  fila), vazão de 1,427 e não 1,5 Mb/s (cabeçalhos e pings), e RTT previsto em pacotes
+  acima do medido (fila tem pacotes pequenos). Encontrado também um salto para trás do
+  relógio do WSL2 em uma rodada; análise passou a detectá-lo.
 
 ## Notas para o relatório
 
@@ -157,21 +174,77 @@ dos experimentos) está marcado como tal.
 
 ### Parte 2
 
-**2.1 (rascunho, a partir do código).** No `dumbbell.py` com `--n 1`, o buffer de q pacotes
-fica na saída `s1 → s2` (interface `s1-eth2`): um `htb rate C` com uma fila folha
-`pfifo limit q` (drop-tail). O atraso de propagação inteiro (20 ms) é aplicado com
-`netem delay` na saída do próprio emissor (`h1-eth0`). Motivo: emissor e "roteador" estão
-no mesmo kernel; sem o netem, um pacote parado na fila do gargalo continua contado no
-socket do emissor, e o *TCP Small Queues* limita cada fluxo a poucos pacotes nessa fila, que
-então nunca enche. O netem "solta" o pacote do socket ao enfileirá-lo. Conferir os
-comandos exatos no `metadata.json` (`comandos_tc`) quando a rodada existir.
+Dados: `dados/p2/q{20,100}/rep{1,2,3}`. Gráficos: `graficos/p2-q100.png`, `graficos/p2-q20.png`
+(rep1). Tabela completa: `resultados/p2.txt`. Valores abaixo: média ± IC 95% das 3
+repetições, descartando os primeiros 20 s. Parâmetros: C = 1,5 Mb/s, RTT de propagação
+20 ms (ping antes dos fluxos: 20,2 ms), MSS 1448 B (1514 B no fio).
 
-**Previsões para 2.2–2.4** (C = 1,5 Mb/s, pacotes de 1500 B, RTT de propagação 20 ms):
-* cada pacote na fila acrescenta 1500 × 8 / 1,5e6 = **8 ms** ao RTT; RTT entre 20 ms e
-  20 + 8q ms: até ~180 ms (q = 20) e ~820 ms (q = 100);
-* BDP = 1,5e6 × 0,02 / 12000 = **2,5 pacotes**; pico da cwnd ≈ BDP + q = 22,5 ou 102,5;
-* vale/pico ≈ β = 0,5; com q = 100 cada dente dura ~30 s;
-* regra B = RTT · C = 1 BDP = 2,5 pacotes para manter o gargalo ocupado com um fluxo.
+| | q = 20 | q = 100 |
+|---|---|---|
+| RTT médio do ping | 131,1 ± 0,4 ms | 597,8 ± 1,3 ms |
+| desvio padrão do RTT | 27,3 ± 0,5 ms | 120,4 ± 0,6 ms |
+| RTT previsto = 20 ms + fila (bytes) × 8 / C | 127,6 ms | 593,6 ms |
+| ocupação média da fila | 14,3 pacotes | 76,3 pacotes |
+| fila mínima (20–195 s) | 6 pacotes | 46 pacotes |
+| vazão útil (bytes confirmados) | 1,427 Mb/s | 1,427 Mb/s |
+| pico da cwnd | 22,3 ± 0,2 | 96,4 ± 0,5 |
+| BDP + q (BDP = 2,5 pacotes) | 22,5 | 102,5 |
+| vale da cwnd | 11,0 | 48,0 |
+| vale / pico | 0,494 ± 0,005 | 0,498 ± 0,002 |
+| período do dente de serra | 1,7 s | 29,4 ± 0,3 s |
+| pico do slow start | 42–45 | 197–199 |
+| timeouts | 0 | 0 |
+
+**2.1** No `dumbbell.py` com `--n 1`, o buffer de q pacotes fica na saída `s1 → s2`
+(interface `s1-eth2`). Os comandos gravados no `metadata.json` são
+`tc qdisc add dev s1-eth2 root handle 1: htb default 10`,
+`tc class add dev s1-eth2 parent 1: classid 1:10 htb rate 1.5mbit` e
+`tc qdisc add dev s1-eth2 parent 1:10 handle 20: pfifo limit q`: o HTB impõe a taxa C e a
+fila folha `pfifo` (drop-tail) guarda até q pacotes. O atraso de propagação inteiro
+(20 ms) é aplicado com `tc qdisc add dev h1-eth0 root netem delay 20.0ms limit 100000`,
+na saída do próprio emissor. Motivo: emissor e "roteador" estão no mesmo kernel. Sem o
+netem, um pacote parado na fila do gargalo continua contado no socket do emissor, e o
+*TCP Small Queues* limita cada fluxo a poucos pacotes nessa fila, que então nunca enche
+(num roteador de verdade isso não acontece). O netem "solta" o pacote do socket
+(`skb_orphan_partial`) ao enfileirá-lo.
+
+**2.2** RTT médio de 131,1 ms (desvio 27,3 ms) com q = 20 e de 597,8 ms (desvio 120,4 ms)
+com q = 100, dentro das faixas esperadas (20 ≤ RTT ≤ 20 + 8q: até 180 e 820 ms; máximos
+medidos ~175 e ~775 ms). Relação: RTT = RTT_prop + atraso de fila, com atraso de fila =
+ocupação / taxa de serviço. Um pacote de dados (1514 B) leva 1514 × 8 / 1,5 Mb/s ≈ 8 ms.
+Usando a ocupação média em pacotes × 8 ms, a previsão (134,7 e 630,7 ms) superestima o
+medido, porque a fila também contém pings (98 B). Usando a ocupação em **bytes**, a
+previsão é 127,6 e 593,6 ms, a 3,5 e 4,2 ms do medido. Essa diferença residual é
+compatível com o tempo que o ping espera, em média, pelo pacote que já está sendo
+transmitido quando ele chega (metade de um pacote, ~4 ms). O gráfico mostra o RTT
+acompanhando a fila amostra a amostra.
+
+**2.3** Vale/pico = 0,498 (q = 100) e 0,494 (q = 20), praticamente β = 1/2. O pico com
+q = 20 (22,3) bate com BDP + q = 22,5. Com q = 100, o pico (96,4) fica ~6 pacotes abaixo
+de 102,5. Explicação, conferida nos dados: com a fila cheia, o tamanho médio por pacote é
+1420 B e não 1514 B, o que corresponde a ~6,7 pings (98 B) entre os 100 pacotes. Como o
+`pfifo` conta pacotes, os pings tomam vagas dos dados: 102,5 − 6,7 ≈ 95,8, perto do pico
+medido. Com q = 20 há só ~1,7 pings na fila cheia (RTT menor, menos pings em trânsito), e
+o pico fica 1,5 pacote acima de 20,8; uma parte disso vem do crescimento da cwnd
+durante o RTT entre a perda e sua detecção. O dente com q = 100 é côncavo: a cwnd cresce 1
+pacote por RTT, e o RTT aumenta à medida que a fila enche, então o crescimento desacelera.
+Cada dente dura 29,4 s (o enunciado fala em ~30 s).
+
+**2.4** A vazão útil é **a mesma** com os dois buffers (1,427 Mb/s, que é exatamente
+(C − tráfego dos pings) × 1448/1514, a fração útil de cada pacote no fio). O buffer
+maior só aumenta o atraso: +467 ms no RTT médio. Isso acontece porque, quando o enlace
+já está sempre ocupado, o que fica na fila além disso não acrescenta vazão: os pacotes só
+esperam mais. A regra B = RTT · C dá 1 BDP = 2,5 pacotes para manter o gargalo sempre
+ocupado com um fluxo Reno: logo após o corte, a janela é (BDP + B)/2, e isso precisa ser
+≥ BDP. Nos dados, a fila nunca esvaziou (mínimo de 6 pacotes com q = 20 e 46 com q = 100,
+entre 20 s e 195 s), então os dois buffers estão acima do necessário; q = 20 já é 8 BDPs.
+O mínimo de 46 com q = 100 bate com (BDP + q)/2 − BDP ≈ 48 menos os pings.
+
+Observações para o relatório:
+* slow start: a cwnd chega a ~198 (q = 100) e ~43 (q = 20), o dobro de BDP + q, antes da
+  primeira perda; os dados descartam os primeiros 20 s;
+* uma rodada (q100/rep1) teve um salto para trás do relógio (ver [Ambiente](#ambiente));
+  efeito de ~1 ms no RTT médio dessa rodada; mantida.
 
 ## Licenças
 

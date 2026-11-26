@@ -49,9 +49,26 @@ def analisa_rodada(run: str) -> dict:
     f = fila[fila[:, 0] >= DESCARTE]
     r.update(fila_media=f[:, 1].mean(), fila_max=fila[:, 1].max(),
              descartes=int(fila[-1, 3] - fila[0, 3]))
+    # atraso de fila = ocupação / taxa de serviço. Em pacotes (8 ms cada) é uma
+    # aproximação; em bytes é exato, porque a fila também guarda pings (98 B no fio).
     r["rtt_previsto"] = rtt_prop + r["fila_media"] * ms_por_pacote
+    r["rtt_previsto_bytes"] = rtt_prop + f[:, 2].mean() * 8 / C * 1e3
+    cheia = fila[fila[:, 1] >= q]
+    r["bytes_por_pacote_fila_cheia"] = (cheia[:, 2] / cheia[:, 1]).mean() if len(cheia) else np.nan
+    # pings dentro da fila cheia: 1514 (1 - f) + 98 f = bytes por pacote
+    r["pings_na_fila_cheia"] = q * (1514 - r["bytes_por_pacote_fila_cheia"]) / (1514 - 98)
+
+    # Saltos para trás do relógio de parede (no WSL2, a sincronização com o Windows pode
+    # recuar o relógio). Pings enviados antes e recebidos depois do salto têm o RTT
+    # subestimado pelo tamanho do salto.
+    dt = np.diff(df["t_s"].to_numpy(float))
+    r["saltos_relogio"] = int((dt < 0).sum())
+    r["pior_salto_s"] = float(dt.min())
 
     r["vazao_mbps"] = throughput_mbps(df, t_from=DESCARTE)
+    # vazão útil esperada: C menos os pings (98 B x 10/s), vezes a fração útil do pacote
+    # (MSS 1448 B de 1514 B no fio: cabeçalhos Ethernet, IP e TCP com timestamps)
+    r["vazao_util_esperada"] = (C - 98 * 8 * 10) / 1e6 * 1448 / 1514
 
     t = df["t_s"].to_numpy(float)
     w = df["cwnd_pkts"].to_numpy(float)
@@ -93,17 +110,24 @@ def main() -> None:
                   f"{r['vale_medio']:6.1f} {r['razao_vale_pico']:5.2f} {r['periodo_dente_s']:7.1f} "
                   f"{r['n_reducoes']:4d} {r['n_timeouts']:3d} {r['loadavg_fim']:5.2f}")
         agg = {k: media_ic([r[k] for r in linhas]) for k in
-               ("rtt_media", "rtt_desvio", "rtt_previsto", "fila_media", "fila_max", "vazao_mbps",
-                "pico_medio", "vale_medio", "razao_vale_pico", "periodo_dente_s")}
+               ("rtt_media", "rtt_desvio", "rtt_previsto", "rtt_previsto_bytes", "fila_media",
+                "fila_max", "vazao_mbps", "pico_medio", "vale_medio", "razao_vale_pico",
+                "periodo_dente_s", "bytes_por_pacote_fila_cheia", "pings_na_fila_cheia")}
         r0 = linhas[0]
         print("média ± IC95%:")
         print(f"  RTT do ping           {fmt_ic(*agg['rtt_media'][:2], 1)} ms "
               f"(desvio {fmt_ic(*agg['rtt_desvio'][:2], 1)} ms)")
         print(f"  RTT previsto pela fila {fmt_ic(*agg['rtt_previsto'][:2], 1)} ms "
-              f"= {r0['rtt_prop_ms']:g} + fila × {r0['ms_por_pacote']:.1f} ms/pacote")
-        print(f"  vazão                 {fmt_ic(*agg['vazao_mbps'][:2], 3)} Mb/s (C = {r0['C_mbps']:g})")
+              f"= {r0['rtt_prop_ms']:g} + fila (pacotes) × {r0['ms_por_pacote']:.1f} ms/pacote")
+        print(f"  RTT previsto (bytes)  {fmt_ic(*agg['rtt_previsto_bytes'][:2], 1)} ms "
+              f"= {r0['rtt_prop_ms']:g} + fila (bytes) × 8 / C")
+        print(f"  vazão útil            {fmt_ic(*agg['vazao_mbps'][:2], 3)} Mb/s (C = {r0['C_mbps']:g}; "
+              f"esperada {r0['vazao_util_esperada']:.3f} = (C − pings) × 1448/1514)")
+        print(f"  fila cheia            {fmt_ic(*agg['bytes_por_pacote_fila_cheia'][:2], 0)} B/pacote "
+              f"-> {fmt_ic(*agg['pings_na_fila_cheia'][:2], 1)} pings entre os {q} pacotes")
         print(f"  pico da cwnd          {fmt_ic(*agg['pico_medio'][:2], 1)} pacotes "
-              f"(BDP + q = {r0['bdp_pkts']:.1f} + {q} = {r0['bdp_pkts'] + q:.1f})")
+              f"(BDP + q = {r0['bdp_pkts']:.1f} + {q} = {r0['bdp_pkts'] + q:.1f}; "
+              f"descontando os pings: {r0['bdp_pkts'] + q - agg['pings_na_fila_cheia'][0]:.1f})")
         print(f"  vale/pico             {fmt_ic(*agg['razao_vale_pico'][:2], 3)} (beta = 0,5)")
         print(f"  período do dente      {fmt_ic(*agg['periodo_dente_s'][:2], 1)} s")
         # conferências da caixa "Erros comuns"
@@ -120,6 +144,9 @@ def main() -> None:
                 avisos.append(f"{nome}: vazão {r['vazao_mbps']:.3f} Mb/s longe de C")
             if r["n_timeouts"]:
                 avisos.append(f"{nome}: {r['n_timeouts']} timeout(s)")
+            if r["saltos_relogio"]:
+                avisos.append(f"{nome}: relógio recuou {r['saltos_relogio']}x (pior {r['pior_salto_s']:+.3f} s); "
+                              "alguns RTTs do ping ficam subestimados perto do salto")
         print("  conferências: " + ("OK" if not avisos else ""))
         for av in avisos:
             print("   ! " + av)

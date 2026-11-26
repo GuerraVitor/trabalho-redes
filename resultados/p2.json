@@ -1,0 +1,322 @@
+{
+ "q100": {
+  "rodadas": [
+   {
+    "q": 100,
+    "C_mbps": 1.5,
+    "rtt_prop_ms": 20.0,
+    "ms_por_pacote": 8.0,
+    "bdp_pkts": 2.5,
+    "loadavg_fim": 0.171875,
+    "rtt_media": 597.2326966292135,
+    "rtt_desvio": 120.3796209987482,
+    "rtt_min": 20.1,
+    "rtt_max": 779.0,
+    "fila_media": 76.24552845528456,
+    "fila_max": 100.0,
+    "descartes": 129,
+    "rtt_previsto": 629.9642276422765,
+    "rtt_previsto_bytes": 592.8706822913746,
+    "bytes_por_pacote_fila_cheia": 1418.9273239436623,
+    "pings_na_fila_cheia": 6.714172037876958,
+    "saltos_relogio": 1,
+    "pior_salto_s": -0.4698999999999991,
+    "vazao_mbps": 1.4273456986641138,
+    "vazao_util_esperada": 1.427112073976222,
+    "n_reducoes": 8,
+    "n_timeouts": 0,
+    "pico_medio": 96.16666666666667,
+    "vale_medio": 48.0,
+    "razao_vale_pico": 0.4991408934707904,
+    "periodo_dente_s": 29.23394
+   },
+   {
+    "q": 100,
+    "C_mbps": 1.5,
+    "rtt_prop_ms": 20.0,
+    "ms_por_pacote": 8.0,
+    "bdp_pkts": 2.5,
+    "loadavg_fim": 0.22412109375,
+    "rtt_media": 598.3123595505618,
+    "rtt_desvio": 120.13349804018647,
+    "rtt_min": 20.0,
+    "rtt_max": 777.0,
+    "fila_media": 76.45083342655778,
+    "fila_max": 100.0,
+    "descartes": 125,
+    "rtt_previsto": 631.6066674124622,
+    "rtt_previsto_bytes": 594.5553832270574,
+    "bytes_por_pacote_fila_cheia": 1427.3017341040465,
+    "pings_na_fila_cheia": 6.122758890957164,
+    "saltos_relogio": 0,
+    "pior_salto_s": 0.008600000000001273,
+    "vazao_mbps": 1.4272231755525535,
+    "vazao_util_esperada": 1.427112073976222,
+    "n_reducoes": 8,
+    "n_timeouts": 0,
+    "pico_medio": 96.5,
+    "vale_medio": 48.0,
+    "razao_vale_pico": 0.49742268041237114,
+    "periodo_dente_s": 29.499980000000004
+   },
+   {
+    "q": 100,
+    "C_mbps": 1.5,
+    "rtt_prop_ms": 20.0,
+    "ms_por_pacote": 8.0,
+    "bdp_pkts": 2.5,
+    "loadavg_fim": 0.3271484375,
+    "rtt_media": 597.8451685393258,
+    "rtt_desvio": 120.61574772584913,
+    "rtt_min": 20.1,
+    "rtt_max": 781.0,
+    "fila_media": 76.2995311976783,
+    "fila_max": 100.0,
+    "descartes": 127,
+    "rtt_previsto": 630.3962495814264,
+    "rtt_previsto_bytes": 593.2972072775979,
+    "bytes_por_pacote_fila_cheia": 1412.9602040816328,
+    "pings_na_fila_cheia": 7.135578807794293,
+    "saltos_relogio": 0,
+    "pior_salto_s": 0.008600000000001273,
+    "vazao_mbps": 1.4272231755525535,
+    "vazao_util_esperada": 1.427112073976222,
+    "n_reducoes": 8,
+    "n_timeouts": 0,
+    "pico_medio": 96.5,
+    "vale_medio": 48.0,
+    "razao_vale_pico": 0.49742268041237114,
+    "periodo_dente_s": 29.421960000000002
+   }
+  ],
+  "agregado": {
+   "rtt_media": [
+    597.7967415730336,
+    1.3451650693813577,
+    3
+   ],
+   "rtt_desvio": [
+    120.3762889215946,
+    0.5990785558025488,
+    3
+   ],
+   "rtt_previsto": [
+    630.6557148787217,
+    2.1151827956187788,
+    3
+   ],
+   "rtt_previsto_bytes": [
+    593.5744242653433,
+    2.1760182852190435,
+    3
+   ],
+   "fila_media": [
+    76.33196435984021,
+    0.26439784945234734,
+    3
+   ],
+   "fila_max": [
+    100.0,
+    0.0,
+    3
+   ],
+   "vazao_mbps": [
+    1.4272640165897403,
+    0.00017573898301458026,
+    3
+   ],
+   "pico_medio": [
+    96.3888888888889,
+    0.4781111111111043,
+    3
+   ],
+   "vale_medio": [
+    48.0,
+    0.0,
+    3
+   ],
+   "razao_vale_pico": [
+    0.4979954180985109,
+    0.002464490263459327,
+    3
+   ],
+   "periodo_dente_s": [
+    29.385293333333337,
+    0.33975224518244973,
+    3
+   ],
+   "bytes_por_pacote_fila_cheia": [
+    1419.7297540431139,
+    17.89806481181902,
+    3
+   ],
+   "pings_na_fila_cheia": [
+    6.657503245542805,
+    1.2639876279533215,
+    3
+   ]
+  },
+  "avisos": [
+   "rep1: rel\u00f3gio recuou 1x (pior -0.470 s); alguns RTTs do ping ficam subestimados perto do salto"
+  ]
+ },
+ "q20": {
+  "rodadas": [
+   {
+    "q": 20,
+    "C_mbps": 1.5,
+    "rtt_prop_ms": 20.0,
+    "ms_por_pacote": 8.0,
+    "bdp_pkts": 2.5,
+    "loadavg_fim": 0.123046875,
+    "rtt_media": 131.02488584474887,
+    "rtt_desvio": 27.3417395648353,
+    "rtt_min": 20.1,
+    "rtt_max": 181.0,
+    "fila_media": 14.337663061656817,
+    "fila_max": 20.0,
+    "descartes": 236,
+    "rtt_previsto": 134.70130449325455,
+    "rtt_previsto_bytes": 127.64606771472108,
+    "bytes_por_pacote_fila_cheia": 1393.7695685670262,
+    "pings_na_fila_cheia": 1.6981699354939799,
+    "saltos_relogio": 0,
+    "pior_salto_s": 0.00919999999999277,
+    "vazao_mbps": 1.4272424181562562,
+    "vazao_util_esperada": 1.427112073976222,
+    "n_reducoes": 116,
+    "n_timeouts": 0,
+    "pico_medio": 22.25,
+    "vale_medio": 11.009615384615385,
+    "razao_vale_pico": 0.4950430004777831,
+    "periodo_dente_s": 1.734464077669903
+   },
+   {
+    "q": 20,
+    "C_mbps": 1.5,
+    "rtt_prop_ms": 20.0,
+    "ms_por_pacote": 8.0,
+    "bdp_pkts": 2.5,
+    "loadavg_fim": 0.248046875,
+    "rtt_media": 131.09903409090907,
+    "rtt_desvio": 27.533430074448727,
+    "rtt_min": 20.1,
+    "rtt_max": 175.0,
+    "fila_media": 14.337217730694173,
+    "fila_max": 20.0,
+    "descartes": 245,
+    "rtt_previsto": 134.69774184555337,
+    "rtt_previsto_bytes": 127.60455779202677,
+    "bytes_por_pacote_fila_cheia": 1392.738253012048,
+    "pings_na_fila_cheia": 1.7127365393778522,
+    "saltos_relogio": 0,
+    "pior_salto_s": 0.008300000000000196,
+    "vazao_mbps": 1.4272714611427484,
+    "vazao_util_esperada": 1.427112073976222,
+    "n_reducoes": 116,
+    "n_timeouts": 0,
+    "pico_medio": 22.346153846153847,
+    "vale_medio": 10.990384615384615,
+    "razao_vale_pico": 0.492056856187291,
+    "periodo_dente_s": 1.738833009708738
+   },
+   {
+    "q": 20,
+    "C_mbps": 1.5,
+    "rtt_prop_ms": 20.0,
+    "ms_por_pacote": 8.0,
+    "bdp_pkts": 2.5,
+    "loadavg_fim": 0.37255859375,
+    "rtt_media": 131.3079275198188,
+    "rtt_desvio": 27.129405442589338,
+    "rtt_min": 20.1,
+    "rtt_max": 174.0,
+    "fila_media": 14.338482127920594,
+    "fila_max": 20.0,
+    "descartes": 228,
+    "rtt_previsto": 134.70785702336474,
+    "rtt_previsto_bytes": 127.56833249688657,
+    "bytes_por_pacote_fila_cheia": 1394.774021909233,
+    "pings_na_fila_cheia": 1.683982741395015,
+    "saltos_relogio": 0,
+    "pior_salto_s": 0.008500000000012164,
+    "vazao_mbps": 1.4271930613028476,
+    "vazao_util_esperada": 1.427112073976222,
+    "n_reducoes": 117,
+    "n_timeouts": 0,
+    "pico_medio": 22.228571428571428,
+    "vale_medio": 11.00952380952381,
+    "razao_vale_pico": 0.49548457063985013,
+    "periodo_dente_s": 1.7214403846153847
+   }
+  ],
+  "agregado": {
+   "rtt_media": [
+    131.14394915182558,
+    0.3646240894026409,
+    3
+   ],
+   "rtt_desvio": [
+    27.33485836062445,
+    0.5020852375575167,
+    3
+   ],
+   "rtt_previsto": [
+    134.70230112072423,
+    0.012746411666787012,
+    3
+   ],
+   "rtt_previsto_bytes": [
+    127.6063193345448,
+    0.0966346345784507,
+    3
+   ],
+   "fila_media": [
+    14.337787640090527,
+    0.0015933014583492339,
+    3
+   ],
+   "fila_max": [
+    20.0,
+    0.0,
+    3
+   ],
+   "vazao_mbps": [
+    1.427235646867284,
+    9.846951108746102e-05,
+    3
+   ],
+   "pico_medio": [
+    22.27490842490842,
+    0.1555784636092115,
+    3
+   ],
+   "vale_medio": [
+    11.003174603174605,
+    0.027517893841099737,
+    3
+   ],
+   "razao_vale_pico": [
+    0.49419480910164143,
+    0.004632393545815368,
+    3
+   ],
+   "periodo_dente_s": [
+    1.731579157331342,
+    0.022478514776962305,
+    3
+   ],
+   "bytes_por_pacote_fila_cheia": [
+    1393.7606144961026,
+    2.528842607390357,
+    3
+   ],
+   "pings_na_fila_cheia": [
+    1.6982964054222824,
+    0.03571811592359247,
+    3
+   ]
+  },
+  "avisos": []
+ }
+}
