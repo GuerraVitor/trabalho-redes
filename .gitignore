@@ -14,3 +14,7 @@ slides/*.nav
 slides/*.snm
 slides/*.toc
 slides/*.out
+# página da NYT de 2012 (conteúdo de terceiros, só usado pelo webserver.py do roteiro
+# original, que esta versão do trabalho não usa); fica fora do repositório público
+bufferbloat/index.html
+bufferbloat.zip
